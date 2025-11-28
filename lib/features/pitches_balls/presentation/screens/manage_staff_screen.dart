@@ -1,8 +1,8 @@
 // ignore_for_file: use_build_context_synchronously, depend_on_referenced_packages
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 
 import '../../../../data/models/user.dart';
 import '../providers/staff_provider.dart';
@@ -54,7 +54,8 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
               left: 16,
             ),
             child: StatefulBuilder(
-              builder: (context, setStateSheet) {
+                builder: (context, setStateSheet) {
+                final provider = staffProvider;
                 return SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -64,6 +65,21 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 16),
+                      // local saving state to prevent double submissions (isSaving in outer scope)
+                      // error message
+                      Builder(builder: (ctx) {
+                        final error = staffProvider.errorMessage;
+                        if (error == null || error.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                            error,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        );
+                      }),
                       TextField(
                         controller: nameController,
                         decoration: const InputDecoration(
@@ -161,53 +177,92 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () async {
-                            final provider = staffProvider;
+                          onPressed: provider.isSaving
+                              ? null
+                              : () async {
+                                  // provider will hold the saving state
+                                  final provider = staffProvider;
+                                  provider.clearError();
 
-                            final name = nameController.text.trim();
-                            final username = usernameController.text.trim();
-                            final password = passwordController.text.trim();
+                                  final name = nameController.text.trim();
+                                  final username =
+                                      usernameController.text.trim();
+                                  final password =
+                                      passwordController.text.trim();
 
-                            if (name.isEmpty ||
-                                username.isEmpty ||
-                                password.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'الرجاء إدخال الاسم، اسم المستخدم، وكلمة المرور.'),
-                                ),
-                              );
-                              return;
-                            }
+                                  if (name.isEmpty ||
+                                      username.isEmpty ||
+                                      password.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'الرجاء إدخال الاسم، اسم المستخدم، وكلمة المرور.'),
+                                      ),
+                                    );
+                                    // provider will clear its saving state
+                                    return;
+                                  }
 
-                            final wageText =
-                                wageController.text.trim().replaceAll(',', '.');
-                            final wage = wageText.isEmpty
-                                ? null
-                                : double.tryParse(wageText);
+                                  final wageText = wageController.text
+                                      .trim()
+                                      .replaceAll(',', '.');
+                                  final wage = wageText.isEmpty
+                                      ? null
+                                      : double.tryParse(wageText);
 
-                            final newUser = User(
-                              id: user?.id,
-                              name: name,
-                              username: username,
-                              password: password,
-                              phone: phoneController.text.trim(),
-                              email: user?.email, // غير مستخدم حالياً
-                              role: 'staff',
-                              isActive: isActive,
-                              wagePerBooking: wage,
-                              canManagePitches: canManagePitches,
-                              canManageCoaches: canManageCoaches,
-                              canManageBookings: canManageBookings,
-                              canViewReports: canViewReports,
-                              isDirty: true,
-                              updatedAt: DateTime.now(),
-                            );
+                                  final newUser = User(
+                                    id: user?.id,
+                                    name: name,
+                                    username: username,
+                                    password: password,
+                                    phone: phoneController.text.trim(),
+                                    email: user?.email, // غير مستخدم حالياً
+                                    role: 'staff',
+                                    isActive: isActive,
+                                    wagePerBooking: wage,
+                                    canManagePitches: canManagePitches,
+                                    canManageCoaches: canManageCoaches,
+                                    canManageBookings: canManageBookings,
+                                    canViewReports: canViewReports,
+                                    isDirty: true,
+                                    updatedAt: DateTime.now(),
+                                  );
 
-                            await provider.addOrUpdateStaff(newUser);
-                            if (mounted) Navigator.of(ctx).pop();
-                          },
-                          child: Text(user == null ? 'حفظ' : 'تحديث'),
+                                  if (kDebugMode) {
+                                    print(
+                                        'Attempting to save staff: ${newUser.toMap()}');
+                                  }
+                                  final success =
+                                      await provider.addOrUpdateStaff(newUser);
+                                  // provider will clear its saving state
+                                  if (success) {
+                                    if (mounted) {
+                                      Navigator.of(ctx).pop();
+                                    }
+                                  } else {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            provider.errorMessage ??
+                                                'تعذر حفظ بيانات الموظف.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          child: provider.isSaving
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(user == null ? 'حفظ' : 'تحديث'),
                         ),
                       ),
                     ],
@@ -230,127 +285,143 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
           return Directionality(
             textDirection: TextDirection.rtl,
             child: Scaffold(
-          appBar: AppBar(
-            title: const Text('إدارة الموظفين'),
-          ),
-          body: Consumer<StaffProvider>(
-            builder: (context, provider, _) {
-              if (provider.isLoading) {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
-              }
+              appBar: AppBar(
+                title: const Text('إدارة الموظفين'),
+              ),
+              body: Consumer<StaffProvider>(
+                builder: (context, provider, _) {
+                  if (provider.isLoading) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
 
-              if (provider.errorMessage != null) {
-                return Center(
-                  child: Text(provider.errorMessage!),
-                );
-              }
+                  if (provider.errorMessage != null) {
+                    return Center(
+                      child: Text(provider.errorMessage!),
+                    );
+                  }
 
-              if (provider.staff.isEmpty) {
-                return const Center(
-                  child: Text('لا يوجد موظفين مسجلين حالياً.'),
-                );
-              }
+                  if (provider.staff.isEmpty) {
+                    return const Center(
+                      child: Text('لا يوجد موظفين مسجلين حالياً.'),
+                    );
+                  }
 
-              return ListView.builder(
-                itemCount: provider.staff.length,
-                itemBuilder: (context, index) {
-                  final user = provider.staff[index];
-                  return Card(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: ListTile(
-                      title: Text(user.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('اسم المستخدم: ${user.username}'),
-                          if (user.phone != null && user.phone!.isNotEmpty)
-                            Text('الجوال: ${user.phone}'),
-                          if (user.wagePerBooking != null)
-                            Text('الأجر لكل حجز: ${user.wagePerBooking}'),
-                          Text(
-                            user.isActive ? 'نشط' : 'غير نشط',
-                            style: TextStyle(
-                              color: user.isActive ? Colors.green : Colors.red,
-                            ),
-                          ),
-                          Wrap(
-                            spacing: 4,
+                  return ListView.builder(
+                    itemCount: provider.staff.length,
+                    itemBuilder: (context, index) {
+                      final user = provider.staff[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        child: ListTile(
+                          title: Text(user.name),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (user.canManagePitches)
-                                const Chip(
-                                  label: Text('ملاعب'),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                              Text('اسم المستخدم: ${user.username}'),
+                              if (user.phone != null &&
+                                  user.phone!.isNotEmpty)
+                                Text('الجوال: ${user.phone}'),
+                              if (user.wagePerBooking != null)
+                                Text('الأجر لكل حجز: ${user.wagePerBooking}'),
+                              Text(
+                                user.isActive ? 'نشط' : 'غير نشط',
+                                style: TextStyle(
+                                  color:
+                                      user.isActive ? Colors.green : Colors.red,
                                 ),
-                              if (user.canManageCoaches)
-                                const Chip(
-                                  label: Text('مدربون'),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              if (user.canManageBookings)
-                                const Chip(
-                                  label: Text('حجوزات'),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              if (user.canViewReports)
-                                const Chip(
-                                  label: Text('تقارير'),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
+                              ),
+                              Wrap(
+                                spacing: 4,
+                                children: [
+                                  if (user.canManagePitches)
+                                    const Chip(
+                                      label: Text('ملاعب'),
+                                      visualDensity: VisualDensity.compact,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  if (user.canManageCoaches)
+                                    const Chip(
+                                      label: Text('مدربون'),
+                                      visualDensity: VisualDensity.compact,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  if (user.canManageBookings)
+                                    const Chip(
+                                      label: Text('حجوزات'),
+                                      visualDensity: VisualDensity.compact,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  if (user.canViewReports)
+                                    const Chip(
+                                      label: Text('تقارير'),
+                                      visualDensity: VisualDensity.compact,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                ],
+                              ),
                             ],
                           ),
-                        ],
-                      ),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) async {
-                          if (value == 'edit') {
-                            _showStaffForm(context, user: user);
-                          } else if (value == 'toggle') {
-                            await provider.toggleStaffActive(user);
-                          } else if (value == 'delete') {
-                            await provider.deleteStaff(user.id!);
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Text('تعديل'),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                _showStaffForm(context, user: user);
+                              } else if (value == 'toggle') {
+                                provider.clearError();
+                                final success =
+                                    await provider.toggleStaffActive(user);
+                                if (!success && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        provider.errorMessage ??
+                                            'تعذر تعديل حالة الموظف.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } else if (value == 'delete') {
+                                provider.clearError();
+                                await provider.deleteStaff(user.id!);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('تعديل'),
+                              ),
+                              PopupMenuItem(
+                                value: 'toggle',
+                                child: Text(
+                                  user.isActive ? 'تعطيل' : 'تفعيل',
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('حذف'),
+                              ),
+                            ],
                           ),
-                          PopupMenuItem(
-                            value: 'toggle',
-                            child: Text(
-                              user.isActive ? 'تعطيل' : 'تفعيل',
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('حذف'),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   );
                 },
-              );
-            },
-          ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {
-              _showStaffForm(providerContext);
-            },
-            child: const Icon(Icons.add),
-          ),
-          ),);
+              ),
+              floatingActionButton: FloatingActionButton(
+                onPressed: () {
+                  _showStaffForm(providerContext);
+                },
+                child: const Icon(Icons.add),
+              ),
+            ),
+          );
         },
       ),
     );

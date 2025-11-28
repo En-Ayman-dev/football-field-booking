@@ -1,51 +1,77 @@
-// ignore_for_file: depend_on_referenced_packages, use_build_context_synchronously
+// ignore_for_file: unnecessary_null_comparison, depend_on_referenced_packages
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-
+import 'dart:ui' as ui;
 
 import '../../../../core/database/database_helper.dart';
 import '../../../../data/models/ball.dart';
+import '../../../../data/models/booking.dart';
 import '../../../../data/models/coach.dart';
 import '../../../../data/models/pitch.dart';
 import '../../../../providers/auth_provider.dart';
 import '../providers/booking_provider.dart';
 
-class AddBookingScreen extends StatefulWidget {
-  const AddBookingScreen({super.key});
+class BookingFormScreen extends StatefulWidget {
+  final Booking? existingBooking;
+
+  const BookingFormScreen({
+    super.key,
+    this.existingBooking,
+  });
 
   @override
-  State<AddBookingScreen> createState() => _AddBookingScreenState();
+  State<BookingFormScreen> createState() => _BookingFormScreenState();
 }
 
-class _AddBookingScreenState extends State<AddBookingScreen> {
+class _BookingFormScreenState extends State<BookingFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
   Pitch? _selectedPitch;
   Ball? _selectedBall;
   Coach? _selectedCoach;
 
-  String? _teamName;
-  String? _customerPhone;
-  String? _period; // morning / evening
+  final TextEditingController _teamNameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _durationController =
+      TextEditingController(text: '1');
+  final TextEditingController _notesController = TextEditingController();
 
+  String? _period; // morning / evening
   TimeOfDay? _startTime;
   double _durationHours = 1;
-
-  String? _notes;
 
   double _calculatedTotalPrice = 0;
   double? _calculatedCoachWage;
 
+  bool _initializedFromExisting = false;
+
   @override
   void initState() {
     super.initState();
+    if (widget.existingBooking != null) {
+      // سنقوم بتعبئة التفاصيل بعد تحميل البيانات (pitches/coaches/balls)
+      _durationHours =
+          widget.existingBooking!.endTime.difference(widget.existingBooking!.startTime).inMinutes / 60.0;
+      _durationController.text =
+          _durationHours.toStringAsFixed(_durationHours.truncateToDouble() == _durationHours ? 0 : 2);
+    }
   }
 
-  Future<void> _pickStartTime(BuildContext ctx) async {
+  @override
+  void dispose() {
+    _teamNameController.dispose();
+    _phoneController.dispose();
+    _durationController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickStartTime() async {
     final now = TimeOfDay.now();
     final picked = await showTimePicker(
-      context: ctx,
+      context: context,
       initialTime: _startTime ?? now,
       helpText: 'اختر وقت بداية الحجز',
     );
@@ -53,13 +79,60 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
       setState(() {
         _startTime = picked;
       });
-      _recalculatePrices(ctx);
+      _recalculatePrices();
     }
   }
 
-  void _recalculatePrices(BuildContext ctx) {
-    final bookingProvider =
-        Provider.of<BookingProvider>(ctx, listen: false);
+  void _initializeFromExistingIfNeeded(BookingProvider provider) {
+    if (_initializedFromExisting || widget.existingBooking == null) {
+      return;
+    }
+
+    final booking = widget.existingBooking!;
+    _teamNameController.text = booking.teamName ?? '';
+    _phoneController.text = booking.customerPhone ?? '';
+    _notesController.text = booking.notes ?? '';
+    _period = booking.period;
+
+    _startTime = TimeOfDay(
+      hour: booking.startTime.hour,
+      minute: booking.startTime.minute,
+    );
+
+    // اختيار الملعب / الكرة / المدرب من القوائم المحمّلة
+    _selectedPitch = provider.pitches
+        .where((p) => p.id == booking.pitchId)
+        .cast<Pitch?>()
+        .firstWhere(
+          (p) => p != null,
+          orElse: () => null,
+        );
+
+    _selectedBall = provider.balls
+        .where((b) => b.id == booking.ballId)
+        .cast<Ball?>()
+        .firstWhere(
+          (b) => b != null,
+          orElse: () => null,
+        );
+
+    _selectedCoach = provider.coaches
+        .where((c) => c.id == booking.coachId)
+        .cast<Coach?>()
+        .firstWhere(
+          (c) => c != null,
+          orElse: () => null,
+        );
+
+    _calculatedTotalPrice = booking.totalPrice ?? 0;
+    _calculatedCoachWage = booking.coachWage;
+
+    _initializedFromExisting = true;
+  }
+
+  void _recalculatePrices() {
+    final provider =
+        Provider.of<BookingProvider>(context, listen: false);
 
     if (_selectedPitch == null) {
       setState(() {
@@ -69,15 +142,16 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
       return;
     }
 
-    final pitchPrice = _selectedPitch!.pricePerHour ?? 0;
-    final totalPrice = bookingProvider.calculateTotalPrice(
+    final effectivePricePerHour =
+        _selectedPitch!.pricePerHour ?? provider.defaultHourPrice ?? 0;
+    final totalPrice = provider.calculateTotalPrice(
       durationHours: _durationHours,
-      pitchPricePerHour: pitchPrice,
+      pitchPricePerHour: effectivePricePerHour,
     );
 
     double? coachWage;
     if (_selectedCoach != null && _selectedCoach!.pricePerHour != null) {
-      coachWage = bookingProvider.calculateCoachWage(
+      coachWage = provider.calculateCoachWage(
         durationHours: _durationHours,
         coachPricePerHour: _selectedCoach!.pricePerHour!,
       );
@@ -89,10 +163,10 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
     });
   }
 
-  Future<void> _submit(BuildContext ctx, {required bool isPaid}) async {
-    final auth = Provider.of<AuthProvider>(ctx, listen: false);
-    final bookingProvider =
-        Provider.of<BookingProvider>(ctx, listen: false);
+  Future<void> _submit({required bool isPaid}) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final provider =
+        Provider.of<BookingProvider>(context, listen: false);
 
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -126,8 +200,6 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
       return;
     }
 
-    _formKey.currentState?.save();
-
     final now = DateTime.now();
     final startDateTime = DateTime(
       now.year,
@@ -137,37 +209,71 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
       _startTime!.minute,
     );
 
-    final id = await bookingProvider.addBooking(
-      createdByUser: currentUser,
-      pitch: _selectedPitch!,
-      ball: _selectedBall,
-      coach: _selectedCoach,
-      startDateTime: startDateTime,
-      durationHours: _durationHours,
-      teamName: _teamName,
-      customerPhone: _customerPhone,
-      period: _period,
-      notes: _notes,
-      isPaid: isPaid,
-    );
+    final teamName = _teamNameController.text.trim().isEmpty
+        ? null
+        : _teamNameController.text.trim();
+    final phone = _phoneController.text.trim().isEmpty
+        ? null
+        : _phoneController.text.trim();
+    final notes = _notesController.text.trim().isEmpty
+        ? null
+        : _notesController.text.trim();
+
+    bool success = false;
+    int? insertedId;
+
+    if (widget.existingBooking == null) {
+      // إضافة حجز جديد
+      insertedId = await provider.addBooking(
+        createdByUser: currentUser,
+        pitch: _selectedPitch!,
+        ball: _selectedBall,
+        coach: _selectedCoach,
+        startDateTime: startDateTime,
+        durationHours: _durationHours,
+        teamName: teamName,
+        customerPhone: phone,
+        period: _period,
+        notes: notes,
+        isPaid: isPaid,
+      );
+      success = insertedId != null;
+    } else {
+      // تعديل حجز قائم
+      success = await provider.updateBooking(
+        existingBooking: widget.existingBooking!,
+        updatedByUser: currentUser,
+        pitch: _selectedPitch!,
+        ball: _selectedBall,
+        coach: _selectedCoach,
+        startDateTime: startDateTime,
+        durationHours: _durationHours,
+        teamName: teamName,
+        customerPhone: phone,
+        period: _period,
+        notes: notes,
+      );
+    }
 
     if (!mounted) return;
 
-    if (id != null) {
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isPaid
-                ? 'تم حفظ الحجز ودفعه بنجاح (رقم: $id).'
-                : 'تم حفظ الحجز كمعلق (رقم: $id).',
+            widget.existingBooking == null
+                ? (isPaid
+                    ? 'تم حفظ الحجز ودفعه بنجاح (رقم: $insertedId).'
+                    : 'تم حفظ الحجز كمعلق (رقم: $insertedId).')
+                : 'تم تحديث بيانات الحجز بنجاح.',
           ),
         ),
       );
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true); // نعيد true لنعلم القوائم بضرورة التحديث
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('تعذر حفظ الحجز.'),
+          content: Text('تعذر حفظ بيانات الحجز.'),
         ),
       );
     }
@@ -177,27 +283,33 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<BookingProvider>(
       create: (_) => BookingProvider(DatabaseHelper())..loadData(),
-      child: Builder(
-        builder: (providerContext) {
-          return Directionality(
-            textDirection: TextDirection.rtl,
-            child: Scaffold(
+      child: Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Scaffold(
           appBar: AppBar(
-            title: const Text('إنشاء حجز جديد'),
+            title: Text(
+              widget.existingBooking == null
+                  ? 'إنشاء حجز جديد'
+                  : 'تعديل الحجز',
+            ),
           ),
           body: Consumer<BookingProvider>(
             builder: (context, provider, _) {
-              if (provider.isLoading) {
+              if (provider.pitches.isEmpty && provider.isLoading) {
                 return const Center(
                   child: CircularProgressIndicator(),
                 );
               }
 
-              if (provider.errorMessage != null) {
+              if (provider.errorMessage != null &&
+                  provider.pitches.isEmpty) {
                 return Center(
                   child: Text(provider.errorMessage!),
                 );
               }
+
+              // تعبئة القيم من الحجز القديم بعد تحميل الموارد
+              _initializeFromExistingIfNeeded(provider);
 
               return Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -223,7 +335,7 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
                           setState(() {
                             _selectedPitch = value;
                           });
-                          _recalculatePrices(providerContext);
+                          _recalculatePrices();
                         },
                         validator: (value) {
                           if (value == null) {
@@ -286,31 +398,27 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
                           setState(() {
                             _selectedCoach = value;
                           });
-                          _recalculatePrices(providerContext);
+                          _recalculatePrices();
                         },
                       ),
                       const SizedBox(height: 16),
 
                       // اسم الفريق
                       TextFormField(
+                        controller: _teamNameController,
                         decoration: const InputDecoration(
                           labelText: 'اسم الفريق',
                         ),
-                        onSaved: (value) {
-                          _teamName = value?.trim();
-                        },
                       ),
                       const SizedBox(height: 12),
 
                       // الهاتف
                       TextFormField(
+                        controller: _phoneController,
                         decoration: const InputDecoration(
                           labelText: 'رقم الهاتف',
                         ),
                         keyboardType: TextInputType.phone,
-                        onSaved: (value) {
-                          _customerPhone = value?.trim();
-                        },
                       ),
                       const SizedBox(height: 12),
 
@@ -343,7 +451,7 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
                         children: [
                           Expanded(
                             child: InkWell(
-                              onTap: () => _pickStartTime(providerContext),
+                              onTap: _pickStartTime,
                               child: InputDecorator(
                                 decoration: const InputDecoration(
                                   labelText: 'وقت البدء',
@@ -360,7 +468,7 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: TextFormField(
-                              initialValue: _durationHours.toString(),
+                              controller: _durationController,
                               decoration: const InputDecoration(
                                 labelText: 'المدة (بالساعات)',
                                 border: OutlineInputBorder(),
@@ -390,14 +498,7 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
                                 setState(() {
                                   _durationHours = d ?? 0;
                                 });
-                                _recalculatePrices(providerContext);
-                              },
-                              onSaved: (value) {
-                                final text = value?.trim() ?? '';
-                                final d = double.tryParse(
-                                  text.replaceAll(',', '.'),
-                                );
-                                _durationHours = d ?? 0;
+                                _recalculatePrices();
                               },
                             ),
                           ),
@@ -407,38 +508,49 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
 
                       // ملاحظات (اختياري)
                       TextFormField(
+                        controller: _notesController,
                         decoration: const InputDecoration(
                           labelText: 'ملاحظات (اختياري)',
                         ),
                         maxLines: 2,
-                        onSaved: (value) {
-                          _notes = value?.trim();
-                        },
                       ),
                       const SizedBox(height: 16),
 
                       // السعر المحسوب
-                      _buildPricePreview(providerContext),
+                      _buildPricePreview(provider),
                       const SizedBox(height: 24),
 
-                      // الأزرار
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () => _submit(providerContext, isPaid: false),
-                              child: const Text('حفظ كمعلّق'),
+                      if (widget.existingBooking == null)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () =>
+                                    _submit(isPaid: false),
+                                child: const Text('حفظ كمعلّق'),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () => _submit(providerContext, isPaid: true),
-                              child: const Text('حفظ ودفع'),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () =>
+                                    _submit(isPaid: true),
+                                child: const Text('حفظ ودفع'),
+                              ),
                             ),
+                          ],
+                        )
+                      else
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => _submit(
+                              isPaid: widget.existingBooking!.status ==
+                                  'paid',
+                            ),
+                            child: const Text('تحديث الحجز'),
                           ),
-                        ],
-                      ),
+                        ),
                     ],
                   ),
                 ),
@@ -446,22 +558,19 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
             },
           ),
         ),
-      );
-    },
       ),
     );
   }
 
-  Widget _buildPricePreview(BuildContext context) {
-    final provider =
-        Provider.of<BookingProvider>(context, listen: false);
-
+  Widget _buildPricePreview(BookingProvider provider) {
     final price = _calculatedTotalPrice;
     final coachWage = _calculatedCoachWage;
 
     final priceWords = price > 0
         ? provider.amountToArabicWords(price, currency: 'ريال')
         : null;
+
+    final timeFormat = DateFormat('HH:mm', 'ar');
 
     return Card(
       margin: EdgeInsets.zero,
@@ -471,9 +580,15 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'السعر المحسوب:',
+              'مُلخص الحجز:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
+            if (_startTime != null)
+              Text(
+                'البداية: ${timeFormat.format(DateTime(0, 1, 1, _startTime!.hour, _startTime!.minute))}',
+              ),
+            Text('المدة: $_durationHours ساعة'),
             const SizedBox(height: 8),
             Text('الإجمالي (رقماً): ${price.toStringAsFixed(2)} ريال'),
             if (priceWords != null) ...[

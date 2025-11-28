@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../../../pitches_balls/presentation/screens/manage_coaches_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_pitches_balls_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_staff_screen.dart';
+import '../../../bookings/presentation/screens/add_booking_screen.dart';
 
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -86,8 +87,23 @@ class AdminDashboardScreen extends StatelessWidget {
                 subtitle: 'عرض تقارير الحجوزات',
                 onTap: () => _openReports(context),
               ),
+              _DashboardCard(
+                icon: Icons.add_box_outlined,
+                title: 'إنشاء حجز',
+                subtitle: 'إضافة حجز جديد',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AddBookingScreen()),
+                ),
+              ),
             ],
           ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AddBookingScreen()),
+          ),
+          label: const Text('حجز جديد'),
+          icon: const Icon(Icons.add_box_outlined),
         ),
       ),
     );

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -16,7 +17,8 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _databaseName = 'arena_manager.db';
-  static const int _databaseVersion = 1;
+  // Bump version when schema changes. Increment to trigger onUpgrade for existing DBs.
+  static const int _databaseVersion = 3;
 
   // أسماء الجداول
   static const String tableUsers = 'users';
@@ -167,7 +169,49 @@ class DatabaseHelper {
     int oldVersion,
     int newVersion,
   ) async {
-    // ترقيات مستقبلية
+    // تنفيذ ترحيل آمن عند ترقية النسخة.
+    // مثال: إضافة عمود `wage_per_booking` إلى جدول `users` إذا لم يكن موجودًا.
+    if (newVersion > oldVersion) {
+      // تحقق مما إذا كان العمود موجودًا بالفعل
+      try {
+        final info = await db.rawQuery('PRAGMA table_info($tableUsers)');
+        final hasWage = info.any((col) => (col['name'] as String?) == 'wage_per_booking');
+        if (!hasWage) {
+          if (kDebugMode) print('Adding column wage_per_booking to $tableUsers');
+          await db.execute('ALTER TABLE $tableUsers ADD COLUMN wage_per_booking REAL');
+        }
+
+        // These columns were added in later schema changes. Ensure they exist
+        // for databases upgraded from older versions.
+        final hasCanManagePitches = info.any((col) => (col['name'] as String?) == 'can_manage_pitches');
+        if (!hasCanManagePitches) {
+          if (kDebugMode) print('Adding column can_manage_pitches to $tableUsers');
+          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_pitches INTEGER NOT NULL DEFAULT 0');
+        }
+
+        final hasCanManageCoaches = info.any((col) => (col['name'] as String?) == 'can_manage_coaches');
+        if (!hasCanManageCoaches) {
+          if (kDebugMode) print('Adding column can_manage_coaches to $tableUsers');
+          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_coaches INTEGER NOT NULL DEFAULT 0');
+        }
+
+        final hasCanManageBookings = info.any((col) => (col['name'] as String?) == 'can_manage_bookings');
+        if (!hasCanManageBookings) {
+          if (kDebugMode) print('Adding column can_manage_bookings to $tableUsers');
+          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_bookings INTEGER NOT NULL DEFAULT 0');
+        }
+
+        final hasCanViewReports = info.any((col) => (col['name'] as String?) == 'can_view_reports');
+        if (!hasCanViewReports) {
+          if (kDebugMode) print('Adding column can_view_reports to $tableUsers');
+          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_view_reports INTEGER NOT NULL DEFAULT 0');
+        }
+      } catch (e) {
+        // Do not fail the upgrade because of a secondary issue. If needed,
+        // more robust logging could be added here.
+        if (kDebugMode) print('Error while applying user table upgrades: $e');
+      }
+    }
   }
 
   Future<void> close() async {
@@ -190,11 +234,18 @@ class DatabaseHelper {
     values['updated_at'] =
         values['updated_at'] ?? DateTime.now().toIso8601String();
 
-    return db.insert(
+    if (kDebugMode) {
+      print('DB insert -> table: $table, values: $values');
+    }
+    final id = await db.insert(
       table,
       values,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (kDebugMode) {
+      print('DB insert <- id: $id');
+    }
+    return id;
   }
 
   Future<List<Map<String, dynamic>>> getAll(
@@ -206,7 +257,10 @@ class DatabaseHelper {
     int? offset,
   }) async {
     final db = await database;
-    return db.query(
+    if (kDebugMode) {
+      print('DB query -> table: $table, where: $where, args: $whereArgs, orderBy: $orderBy');
+    }
+    final rows = await db.query(
       table,
       where: where,
       whereArgs: whereArgs,
@@ -214,6 +268,10 @@ class DatabaseHelper {
       limit: limit,
       offset: offset,
     );
+    if (kDebugMode) {
+      print('DB query <- rows: ${rows.length}');
+    }
+    return rows;
   }
 
   Future<Map<String, dynamic>?> getById(
@@ -245,13 +303,20 @@ class DatabaseHelper {
     values['updated_at'] =
         values['updated_at'] ?? DateTime.now().toIso8601String();
 
-    return db.update(
+    if (kDebugMode) {
+      print('DB update -> table: $table, values: $values, where: $where, whereArgs: $whereArgs');
+    }
+    final result = await db.update(
       table,
       values,
       where: where,
       whereArgs: whereArgs,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (kDebugMode) {
+      print('DB update <- result: $result');
+    }
+    return result;
   }
 
   Future<int> delete(
@@ -260,11 +325,18 @@ class DatabaseHelper {
     List<Object?>? whereArgs,
   }) async {
     final db = await database;
-    return db.delete(
+    if (kDebugMode) {
+      print('DB delete -> table: $table, where: $where, whereArgs: $whereArgs');
+    }
+    final result = await db.delete(
       table,
       where: where,
       whereArgs: whereArgs,
     );
+    if (kDebugMode) {
+      print('DB delete <- result: $result');
+    }
+    return result;
   }
 
   Future<List<Map<String, dynamic>>> rawQuery(
