@@ -1,10 +1,10 @@
 // ignore_for_file: deprecated_member_use
 
-// import 'package:flutter/material.dart';
-
 import 'package:flutter/material.dart' hide SizedBox;
 import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../providers/auth_provider.dart';
 import '../../../pitches_balls/presentation/screens/manage_coaches_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_pitches_balls_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_staff_screen.dart';
@@ -55,6 +55,32 @@ class AdminDashboardScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('لوحة تحكم المدير'),
           centerTitle: true,
+          actions: [
+            IconButton(
+              tooltip: 'تسجيل خروج',
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('تأكيد'),
+                    content: const Text('هل تريد تسجيل الخروج؟'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
+                      TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
+                    ],
+                  ),
+                );
+                if (confirm ?? false) {
+                  final auth = Provider.of<AuthProvider>(context, listen: false);
+                  await auth.logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                  }
+                }
+              },
+              icon: const Icon(Icons.logout),
+            ),
+          ],
         ),
         body: Padding(
           padding: const EdgeInsets.all(16.0),
