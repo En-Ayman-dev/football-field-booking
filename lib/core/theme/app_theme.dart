@@ -65,7 +65,8 @@ class AppTheme {
 
   static final ElevatedButtonThemeData _elevatedButtonTheme = ElevatedButtonThemeData(
     style: ButtonStyle(
-      minimumSize: WidgetStateProperty.all(const Size.fromHeight(54)),
+      // FIXED: Use Size(0, 54) instead of Size.fromHeight(54) which forces infinite width
+      minimumSize: WidgetStateProperty.all(const Size(0, 54)), 
       padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
       shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
       elevation: WidgetStateProperty.all(8),
@@ -77,7 +78,7 @@ class AppTheme {
 
   static final OutlinedButtonThemeData _outlinedButtonTheme = OutlinedButtonThemeData(
     style: ButtonStyle(
-      minimumSize: WidgetStateProperty.all(const Size.fromHeight(54)),
+      minimumSize: WidgetStateProperty.all(const Size(0, 54)), // Apply same fix here
       padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
       shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
     ),
