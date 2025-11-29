@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../core/theme/app_theme.dart';
 
 import '../../../../data/models/coach.dart';
 import '../providers/coaches_provider.dart';
@@ -205,9 +206,7 @@ class _ManageCoachesScreenState extends State<ManageCoachesScreen> {
                               Text(
                                 coach.isActive ? 'نشط' : 'غير نشط',
                                 style: TextStyle(
-                                  color: coach.isActive
-                                      ? Colors.green
-                                      : Colors.red,
+                                  color: coach.isActive ? AppTheme.success : Theme.of(context).colorScheme.error,
                                 ),
                               ),
                             ],

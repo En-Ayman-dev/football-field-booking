@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, depend_on_referenced_packages
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide SizedBox;
 import 'package:flutter/widgets.dart';

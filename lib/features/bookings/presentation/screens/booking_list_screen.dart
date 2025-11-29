@@ -10,6 +10,7 @@ import '../../../../data/models/booking.dart';
 import '../../../../data/models/pitch.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../providers/booking_provider.dart';
 import 'add_booking_screen.dart';
 
@@ -218,13 +219,18 @@ class _BookingListScreenState extends State<BookingListScreen> {
                       isDense: true,
                     ),
                     initialValue: _selectedPitchId,
-                    items: const [
-                      DropdownMenuItem<int?>(
+                    items: [
+                      const DropdownMenuItem<int?>(
                         value: null,
                         child: Text('كل الملاعب'),
                       ),
-                      DropdownMenuItem<int?>(value: 1, child: Text('ملعب 1')),
-                      DropdownMenuItem<int?>(value: 2, child: Text('ملعب 2')),
+                      // Build items dynamically from provider.pitches
+                      ...provider.pitches.map((p) {
+                        return DropdownMenuItem<int?>(
+                          value: p.id,
+                          child: Text(p.name.isNotEmpty ? p.name : 'ملعب ${p.id ?? ''}'),
+                        );
+                      }),
                     ],
                     onChanged: (value) async {
                       setState(() {
@@ -313,10 +319,10 @@ class _BookingListScreenState extends State<BookingListScreen> {
 
     Color statusColor;
     if (booking.status == 'paid') {
-      statusColor = Colors.green;
+      statusColor = AppTheme.success;
     } else {
       // نعتبر الباقي pending
-      statusColor = Colors.amber;
+      statusColor = AppTheme.warning;
     }
 
     return Card(
@@ -358,6 +364,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
     required bool isAdmin,
   }) {
     final provider = Provider.of<BookingProvider>(context, listen: false);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return PopupMenuButton<String>(
       onSelected: (value) async {
@@ -423,9 +430,9 @@ class _BookingListScreenState extends State<BookingListScreen> {
                   ),
                   TextButton(
                     onPressed: () => Navigator.of(ctx).pop(true),
-                    child: const Text(
+                    child: Text(
                       'حذف',
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(color: colorScheme.error),
                     ),
                   ),
                 ],
@@ -453,9 +460,9 @@ class _BookingListScreenState extends State<BookingListScreen> {
         items.add(const PopupMenuItem(value: 'print', child: Text('طباعة')));
         if (isAdmin) {
           items.add(
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'delete',
-              child: Text('حذف', style: TextStyle(color: Colors.red)),
+              child: Text('حذف', style: TextStyle(color: colorScheme.error)),
             ),
           );
         }

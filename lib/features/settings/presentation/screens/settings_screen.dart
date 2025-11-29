@@ -1,11 +1,15 @@
 // Settings screen with DB-backed simple settings and admin actions
+// ignore_for_file: depend_on_referenced_packages
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../core/settings/settings_notifier.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/database/database_helper.dart';
 import '../../../../providers/auth_provider.dart';
+import '../../../../features/bookings/presentation/providers/booking_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,6 +21,12 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _defaultHourPriceController = TextEditingController();
+  final TextEditingController _defaultHourPriceMorningController = TextEditingController();
+  final TextEditingController _defaultHourPriceEveningController = TextEditingController();
+  final TextEditingController _defaultHourPriceMorningIndoorController = TextEditingController();
+  final TextEditingController _defaultHourPriceEveningIndoorController = TextEditingController();
+  final TextEditingController _defaultHourPriceMorningOutdoorController = TextEditingController();
+  final TextEditingController _defaultHourPriceEveningOutdoorController = TextEditingController();
   final TextEditingController _defaultStaffWageController = TextEditingController();
   final TextEditingController _adminUsernameController = TextEditingController();
   final TextEditingController _adminPasswordController = TextEditingController();
@@ -32,6 +42,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    // Sync local theme with notifier once the UI is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final notifier = Provider.of<SettingsNotifier>(context, listen: false);
+      setState(() => _themeMode = notifier.themeMode == ThemeMode.dark
+          ? 'dark'
+          : notifier.themeMode == ThemeMode.light
+              ? 'light'
+              : 'system');
+    });
+  }
+
+  ThemeMode _stringToThemeMode(String s) {
+    switch (s) {
+      case 'dark':
+        return ThemeMode.dark;
+      case 'light':
+        return ThemeMode.light;
+      default:
+        return ThemeMode.system;
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -43,8 +73,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final map = {for (var r in rows) r['key']?.toString(): r['value']?.toString()};
 
       setState(() {
+        // Backwards compatibility: support older single key default_hour_price
         if (map['default_hour_price'] != null) {
           _defaultHourPriceController.text = map['default_hour_price']!;
+          // If morning/evening not set, use this value as fallback
+          _defaultHourPriceMorningController.text = map['default_hour_price']!;
+          _defaultHourPriceEveningController.text = map['default_hour_price']!;
+        }
+        if (map['default_hour_price_morning'] != null) {
+          _defaultHourPriceMorningController.text = map['default_hour_price_morning']!;
+        }
+        if (map['default_hour_price_morning_indoor'] != null) {
+          _defaultHourPriceMorningIndoorController.text = map['default_hour_price_morning_indoor']!;
+        }
+        if (map['default_hour_price_morning_outdoor'] != null) {
+          _defaultHourPriceMorningOutdoorController.text = map['default_hour_price_morning_outdoor']!;
+        }
+        if (map['default_hour_price_evening'] != null) {
+          _defaultHourPriceEveningController.text = map['default_hour_price_evening']!;
+        }
+        if (map['default_hour_price_evening_indoor'] != null) {
+          _defaultHourPriceEveningIndoorController.text = map['default_hour_price_evening_indoor']!;
+        }
+        if (map['default_hour_price_evening_outdoor'] != null) {
+          _defaultHourPriceEveningOutdoorController.text = map['default_hour_price_evening_outdoor']!;
         }
         if (map['default_staff_wage'] != null) {
           _defaultStaffWageController.text = map['default_staff_wage']!;
@@ -80,21 +132,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveSettings() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final text = _defaultHourPriceController.text.trim();
-    final value = double.tryParse(text.replaceAll(',', '.'));
-    if (value == null) {
+    final mainText = _defaultHourPriceController.text.trim();
+    final morningText = _defaultHourPriceMorningController.text.trim();
+    final eveningText = _defaultHourPriceEveningController.text.trim();
+    if (mainText.isEmpty && morningText.isEmpty && eveningText.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال رقم صحيح لسعر الساعة.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال سعر افتراضي واحد على الأقل.')));
       return;
+    }
+    double? value;
+    if (mainText.isNotEmpty) {
+      value = double.tryParse(mainText.replaceAll(',', '.'));
+      if (value == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال رقم صحيح لسعر الساعة.')));
+        return;
+      }
+    }
+    double? morningValue;
+    if (morningText.isNotEmpty) {
+      morningValue = double.tryParse(morningText.replaceAll(',', '.'));
+      if (morningValue == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال رقم صحيح لسعر الساعة صباحي.')));
+        return;
+      }
+    }
+    double? eveningValue;
+    if (eveningText.isNotEmpty) {
+      eveningValue = double.tryParse(eveningText.replaceAll(',', '.'));
+      if (eveningValue == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال رقم صحيح لسعر الساعة مسائي.')));
+        return;
+      }
     }
 
     try {
       final db = await _dbHelper.database;
       await db.transaction((txn) async {
         await txn.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)');
-        await txn.insert('settings', {'key': 'default_hour_price', 'value': value.toString()}, conflictAlgorithm: ConflictAlgorithm.replace);
+        if (value != null) {
+          await txn.insert('settings', {'key': 'default_hour_price', 'value': value.toString()}, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
         if (_defaultStaffWageController.text.trim().isNotEmpty) {
           await txn.insert('settings', {'key': 'default_staff_wage', 'value': _defaultStaffWageController.text.trim().replaceAll(',', '.')}, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (morningValue != null) {
+          await txn.insert('settings', {'key': 'default_hour_price_morning', 'value': _defaultHourPriceMorningController.text.trim().replaceAll(',', '.')}, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (_defaultHourPriceMorningIndoorController.text.trim().isNotEmpty) {
+          await txn.insert('settings', {'key': 'default_hour_price_morning_indoor', 'value': _defaultHourPriceMorningIndoorController.text.trim().replaceAll(',', '.')}, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (_defaultHourPriceMorningOutdoorController.text.trim().isNotEmpty) {
+          await txn.insert('settings', {'key': 'default_hour_price_morning_outdoor', 'value': _defaultHourPriceMorningOutdoorController.text.trim().replaceAll(',', '.')}, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (eveningValue != null) {
+          await txn.insert('settings', {'key': 'default_hour_price_evening', 'value': _defaultHourPriceEveningController.text.trim().replaceAll(',', '.')}, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (_defaultHourPriceEveningIndoorController.text.trim().isNotEmpty) {
+          await txn.insert('settings', {'key': 'default_hour_price_evening_indoor', 'value': _defaultHourPriceEveningIndoorController.text.trim().replaceAll(',', '.')}, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (_defaultHourPriceEveningOutdoorController.text.trim().isNotEmpty) {
+          await txn.insert('settings', {'key': 'default_hour_price_evening_outdoor', 'value': _defaultHourPriceEveningOutdoorController.text.trim().replaceAll(',', '.')}, conflictAlgorithm: ConflictAlgorithm.replace);
         }
         await txn.insert('settings', {'key': 'auto_sync', 'value': _autoSync ? '1' : '0'}, conflictAlgorithm: ConflictAlgorithm.replace);
         await txn.insert('settings', {'key': 'theme_mode', 'value': _themeMode}, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -103,6 +203,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ الإعدادات بنجاح.')));
+      if (kDebugMode) {
+        print('Settings saved: default=$value, morning=$morningValue, evening=$eveningValue, morningIndoor=${_defaultHourPriceMorningIndoorController.text.trim()}, eveningIndoor=${_defaultHourPriceEveningIndoorController.text.trim()}, morningOutdoor=${_defaultHourPriceMorningOutdoorController.text.trim()}, eveningOutdoor=${_defaultHourPriceEveningOutdoorController.text.trim()}');
+      }
+      // Trigger BookingProvider to reload its settings so UI updates immediately
+      try {
+        final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+        await bookingProvider.reloadSettings();
+      } catch (e) {
+        // Provider might not exist in this route; that's fine
+        if (kDebugMode) print('No booking provider to reload settings: $e');
+      }
     } catch (e) {
       if (kDebugMode) print('Error saving settings: $e');
       if (!mounted) return;
@@ -171,6 +282,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _defaultHourPriceController.dispose();
     _defaultStaffWageController.dispose();
+    _defaultHourPriceMorningController.dispose();
+    _defaultHourPriceEveningController.dispose();
+    _defaultHourPriceMorningIndoorController.dispose();
+    _defaultHourPriceEveningIndoorController.dispose();
+    _defaultHourPriceMorningOutdoorController.dispose();
+    _defaultHourPriceEveningOutdoorController.dispose();
     _adminUsernameController.dispose();
     _adminPasswordController.dispose();
     super.dispose();
@@ -178,6 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // final settingsNotifier = Provider.of<SettingsNotifier>(context);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -191,6 +309,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: ListView(
                     children: [
                       const Text('إعدادات الأسعار', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      const Text('سعر الساعة الافتراضي حسب الفترة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _defaultHourPriceMorningController,
+                        decoration: const InputDecoration(
+                          labelText: 'سعر الساعة - صباحي',
+                          suffixText: 'ريال',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _defaultHourPriceEveningController,
+                        decoration: const InputDecoration(
+                          labelText: 'سعر الساعة - مسائي',
+                          suffixText: 'ريال',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text('الأسعار حسب نوع الملعب', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      const Text('الملاعب الداخلية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _defaultHourPriceMorningIndoorController,
+                        decoration: const InputDecoration(
+                          labelText: 'سعر الساعة - صباحي (داخلية)',
+                          suffixText: 'ريال',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _defaultHourPriceEveningIndoorController,
+                        decoration: const InputDecoration(
+                          labelText: 'سعر الساعة - مسائي (داخلية)',
+                          suffixText: 'ريال',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text('الملاعب الخارجية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _defaultHourPriceMorningOutdoorController,
+                        decoration: const InputDecoration(
+                          labelText: 'سعر الساعة - صباحي (خارجية)',
+                          suffixText: 'ريال',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _defaultHourPriceEveningOutdoorController,
+                        decoration: const InputDecoration(
+                          labelText: 'سعر الساعة - مسائي (خارجية)',
+                          suffixText: 'ريال',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _defaultHourPriceController,
@@ -234,13 +420,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const Text('الوضع: '),
                           const SizedBox(width: 8),
                           DropdownButton<String>(
-                            value: _themeMode,
+                            value: Provider.of<SettingsNotifier>(context).themeMode == ThemeMode.dark
+                                ? 'dark'
+                                : Provider.of<SettingsNotifier>(context).themeMode == ThemeMode.light
+                                    ? 'light'
+                                    : 'system',
                             items: const [
                               DropdownMenuItem(value: 'light', child: Text('فاتح')),
                               DropdownMenuItem(value: 'dark', child: Text('داكن')),
                               DropdownMenuItem(value: 'system', child: Text('نظام')),
                             ],
-                            onChanged: (v) => setState(() => _themeMode = v ?? 'light'),
+                            onChanged: (v) {
+                              final value = v ?? 'light';
+                              setState(() => _themeMode = value);
+                              final notifier = Provider.of<SettingsNotifier>(context, listen: false);
+                              notifier.setThemeMode(_stringToThemeMode(value));
+                            },
                           ),
                         ],
                       ),
@@ -299,7 +494,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
                                     onPressed: _resetDatabase,
                                     child: const Text('إعادة تهيئة قاعدة البيانات'),
                                   ),

@@ -73,6 +73,8 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
     final totalPrice = bookingProvider.calculateTotalPrice(
       durationHours: _durationHours,
       pitchPricePerHour: pitchPrice,
+      period: _period,
+      isIndoor: _selectedPitch!.isIndoor,
     );
 
     double? coachWage;
@@ -346,6 +348,7 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
                           setState(() {
                             _period = value;
                           });
+                          _recalculatePrices(providerContext);
                         },
                       ),
                       const SizedBox(height: 16),

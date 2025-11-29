@@ -434,6 +434,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/database/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
+import '../../../../core/settings/settings_notifier.dart';
 import '../../../../data/models/ball.dart';
 import '../../../../data/models/booking.dart';
 import '../../../../data/models/coach.dart';
@@ -442,6 +443,7 @@ import '../../../../data/models/user.dart';
 
 class BookingProvider extends ChangeNotifier {
   final DatabaseHelper _dbHelper;
+  final SettingsNotifier? _settingsNotifier;
 
   List<Pitch> _pitches = [];
   List<Ball> _balls = [];
@@ -455,11 +457,21 @@ class BookingProvider extends ChangeNotifier {
   int? _currentFilterPitchId;
   String? _currentFilterPeriod; // 'morning' / 'evening' / null (all)
 
-  // السعر الافتراضي للساعة من جدول settings (default_hour_price)
+  // السعر الافتراضي للساعة من جدول settings (default_hour_price_morning / default_hour_price_evening)
   double? _defaultHourPrice;
+  double? _defaultHourPriceMorning;
+  double? _defaultHourPriceEvening;
+  double? _defaultHourPriceMorningIndoor;
+  double? _defaultHourPriceEveningIndoor;
+  double? _defaultHourPriceMorningOutdoor;
+  double? _defaultHourPriceEveningOutdoor;
 
-  BookingProvider(DatabaseHelper databaseHelper, {DatabaseHelper? dbHelper})
-      : _dbHelper = dbHelper ?? DatabaseHelper();
+  BookingProvider(DatabaseHelper databaseHelper, {DatabaseHelper? dbHelper, SettingsNotifier? settingsNotifier})
+      : _dbHelper = dbHelper ?? DatabaseHelper(),
+        _settingsNotifier = settingsNotifier {
+    // Subscribe to settings updates so we can reload defaults
+    _settingsNotifier?.addListener(_onSettingsUpdated);
+  }
 
   List<Pitch> get pitches => _pitches;
   List<Ball> get balls => _balls;
@@ -475,6 +487,12 @@ class BookingProvider extends ChangeNotifier {
 
   // Getter للسعر الافتراضي حتى تستخدمه شاشة النموذج
   double? get defaultHourPrice => _defaultHourPrice;
+  double? get defaultHourPriceMorning => _defaultHourPriceMorning;
+  double? get defaultHourPriceEvening => _defaultHourPriceEvening;
+  double? get defaultHourPriceMorningIndoor => _defaultHourPriceMorningIndoor;
+  double? get defaultHourPriceEveningIndoor => _defaultHourPriceEveningIndoor;
+  double? get defaultHourPriceMorningOutdoor => _defaultHourPriceMorningOutdoor;
+  double? get defaultHourPriceEveningOutdoor => _defaultHourPriceEveningOutdoor;
 
   /// تحميل قيمة default_hour_price من جدول settings (إن وجدت)
   Future<void> _loadDefaultHourPrice() async {
@@ -487,18 +505,35 @@ class BookingProvider extends ChangeNotifier {
         );
       ''');
 
-      final rows = await _dbHelper.rawQuery(
-        'SELECT value FROM settings WHERE key = ?',
-        ['default_hour_price'],
-      );
-
-      if (rows.isNotEmpty) {
-        final value = rows.first['value']?.toString();
-        if (value != null && value.isNotEmpty) {
-          _defaultHourPrice =
-              double.tryParse(value.replaceAll(',', '.'));
-        }
+      // Load both morning/evening values. Keep backward compatibility with single key default_hour_price
+      final rowsAll = await _dbHelper.rawQuery('SELECT key,value FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?)', ['default_hour_price', 'default_hour_price_morning', 'default_hour_price_evening', 'default_hour_price_morning_indoor', 'default_hour_price_evening_indoor', 'default_hour_price_morning_outdoor', 'default_hour_price_evening_outdoor']);
+      final map = {for (var r in rowsAll) r['key']?.toString(): r['value']?.toString()};
+      if (map['default_hour_price_morning'] != null && map['default_hour_price_morning']!.isNotEmpty) {
+        _defaultHourPriceMorning = double.tryParse(map['default_hour_price_morning']!.replaceAll(',', '.'));
       }
+      if (map['default_hour_price_evening'] != null && map['default_hour_price_evening']!.isNotEmpty) {
+        _defaultHourPriceEvening = double.tryParse(map['default_hour_price_evening']!.replaceAll(',', '.'));
+      }
+      if (map['default_hour_price_morning_indoor'] != null && map['default_hour_price_morning_indoor']!.isNotEmpty) {
+        _defaultHourPriceMorningIndoor = double.tryParse(map['default_hour_price_morning_indoor']!.replaceAll(',', '.'));
+      }
+      if (map['default_hour_price_evening_indoor'] != null && map['default_hour_price_evening_indoor']!.isNotEmpty) {
+        _defaultHourPriceEveningIndoor = double.tryParse(map['default_hour_price_evening_indoor']!.replaceAll(',', '.'));
+      }
+      if (map['default_hour_price_morning_outdoor'] != null && map['default_hour_price_morning_outdoor']!.isNotEmpty) {
+        _defaultHourPriceMorningOutdoor = double.tryParse(map['default_hour_price_morning_outdoor']!.replaceAll(',', '.'));
+      }
+      if (map['default_hour_price_evening_outdoor'] != null && map['default_hour_price_evening_outdoor']!.isNotEmpty) {
+        _defaultHourPriceEveningOutdoor = double.tryParse(map['default_hour_price_evening_outdoor']!.replaceAll(',', '.'));
+      }
+      // Backwards compatibility: single default_hour_price
+      if (_defaultHourPriceMorning == null && _defaultHourPriceEvening == null && map['default_hour_price'] != null && map['default_hour_price']!.isNotEmpty) {
+        final v = double.tryParse(map['default_hour_price']!.replaceAll(',', '.'));
+        _defaultHourPrice = v;
+        _defaultHourPriceMorning = v;
+        _defaultHourPriceEvening = v;
+      }
+      if (kDebugMode) print('Loaded default prices: morning=$_defaultHourPriceMorning, evening=$_defaultHourPriceEvening, morningIndoor=$_defaultHourPriceMorningIndoor, eveningIndoor=$_defaultHourPriceEveningIndoor, morningOutdoor=$_defaultHourPriceMorningOutdoor, eveningOutdoor=$_defaultHourPriceEveningOutdoor, legacy=$_defaultHourPrice');
     } catch (e) {
       if (kDebugMode) {
         print('Error loading default_hour_price: $e');
@@ -545,15 +580,80 @@ class BookingProvider extends ChangeNotifier {
     }
   }
 
+  void _onSettingsUpdated() {
+    reloadSettings();
+  }
+
+  /// Reload only the settings (default hour prices) without reloading all resources.
+  Future<void> reloadSettings() async {
+    try {
+      await _loadDefaultHourPrice();
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) print('Error reloading booking settings: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _settingsNotifier?.removeListener(_onSettingsUpdated);
+    super.dispose();
+  }
+
   /// (مدة الحجز بالساعات * سعر الساعة للملعب)
   double calculateTotalPrice({
     required double durationHours,
     required double pitchPricePerHour,
+    String? period,
+    bool? isIndoor,
   }) {
-    if (durationHours <= 0 || pitchPricePerHour <= 0) {
-      return 0;
+    if (durationHours <= 0) return 0;
+
+    // Determine price from settings with per-type overrides taking precedence
+    double fallback = 0;
+    // Check per-type per-period override first
+    if (isIndoor == true) {
+      final p = (period == 'evening') ? _defaultHourPriceEveningIndoor : _defaultHourPriceMorningIndoor;
+      if (p != null && p > 0) {
+        fallback = p;
+      }
+    } else if (isIndoor == false) {
+      final p = (period == 'evening') ? _defaultHourPriceEveningOutdoor : _defaultHourPriceMorningOutdoor;
+      if (p != null && p > 0) {
+        fallback = p;
+      }
     }
-    return durationHours * pitchPricePerHour;
+    // If we don't have a per-type override, check general per-period settings
+    if (fallback == 0) {
+      fallback = _defaultHourPriceMorning ?? _defaultHourPrice ?? 0;
+      if (period != null && period == 'evening') {
+        fallback = _defaultHourPriceEvening ?? fallback;
+      }
+    }
+    if (period != null && period == 'evening') {
+      fallback = _defaultHourPriceEvening ?? fallback;
+    }
+    // If specific indoor/outdoor per-period price exists use it
+    if (isIndoor == true) {
+      final p = (period == 'evening') ? _defaultHourPriceEveningIndoor : _defaultHourPriceMorningIndoor;
+      if (p != null && p > 0) {
+        fallback = p;
+      }
+    } else if (isIndoor == false) {
+      final p = (period == 'evening') ? _defaultHourPriceEveningOutdoor : _defaultHourPriceMorningOutdoor;
+      if (p != null && p > 0) {
+        fallback = p;
+      }
+    }
+    // If no setting found yet, use pitch's own price if provided
+    if ((fallback <= 0) && pitchPricePerHour > 0) {
+      if (kDebugMode) print('calculateTotalPrice: using pitch price $pitchPricePerHour (period=$period, isIndoor=$isIndoor)');
+      return durationHours * pitchPricePerHour;
+    }
+
+    if (fallback <= 0) return 0;
+    if (kDebugMode) print('calculateTotalPrice: using fallback $fallback (period=$period, isIndoor=$isIndoor)');
+    return durationHours * fallback;
   }
 
   /// (مدة الحجز * أجر المدرب بالساعة)
@@ -712,11 +812,12 @@ class BookingProvider extends ChangeNotifier {
         ),
       );
 
-      // سعر الساعة الفعلي المستخدم (snapshot)
-      final pitchPricePerHour = pitch.pricePerHour ?? _defaultHourPrice ?? 0;
+      // سعر الساعة الفعلي المستخدم (snapshot). calculateTotalPrice will use pitch price if set, otherwise fall back to settings depending on period
       final totalPrice = calculateTotalPrice(
         durationHours: durationHours,
-        pitchPricePerHour: pitchPricePerHour,
+        pitchPricePerHour: pitch.pricePerHour ?? 0,
+        period: period,
+        isIndoor: pitch.isIndoor,
       );
 
       double? coachWage;
@@ -880,10 +981,11 @@ class BookingProvider extends ChangeNotifier {
       );
 
       // نفس منطق createBooking: نستخدم سعر الملعب أو الافتراضي
-      final pitchPricePerHour = pitch.pricePerHour ?? _defaultHourPrice ?? 0;
       final totalPrice = calculateTotalPrice(
         durationHours: durationHours,
-        pitchPricePerHour: pitchPricePerHour,
+        pitchPricePerHour: pitch.pricePerHour ?? 0,
+        period: period,
+        isIndoor: pitch.isIndoor,
       );
 
       double? coachWage;

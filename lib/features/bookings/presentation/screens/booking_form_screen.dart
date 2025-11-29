@@ -142,11 +142,11 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       return;
     }
 
-    final effectivePricePerHour =
-        _selectedPitch!.pricePerHour ?? provider.defaultHourPrice ?? 0;
     final totalPrice = provider.calculateTotalPrice(
       durationHours: _durationHours,
-      pitchPricePerHour: effectivePricePerHour,
+      pitchPricePerHour: _selectedPitch!.pricePerHour ?? 0,
+      period: _period,
+      isIndoor: _selectedPitch!.isIndoor,
     );
 
     double? coachWage;
@@ -442,6 +442,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                           setState(() {
                             _period = value;
                           });
+                          _recalculatePrices();
                         },
                       ),
                       const SizedBox(height: 16),

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../data/models/user.dart';
 import '../../../../providers/auth_provider.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../providers/staff_provider.dart';
 
 class ManageStaffScreen extends StatefulWidget {
@@ -77,7 +78,7 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 8.0),
                           child: Text(
                             error,
-                            style: const TextStyle(color: Colors.red),
+                            style: TextStyle(color: Theme.of(ctx).colorScheme.error),
                           ),
                         );
                       }),
@@ -254,13 +255,13 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                                     }
                                   }
                                 },
-                          child: provider.isSaving
-                              ? const SizedBox(
+                                  child: provider.isSaving
+                              ? SizedBox(
                                   height: 16,
                                   width: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    color: Theme.of(context).colorScheme.onPrimary,
                                   ),
                                 )
                               : Text(user == null ? 'حفظ' : 'تحديث'),
@@ -356,8 +357,7 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                               Text(
                                 user.isActive ? 'نشط' : 'غير نشط',
                                 style: TextStyle(
-                                  color:
-                                      user.isActive ? Colors.green : Colors.red,
+                                  color: user.isActive ? AppTheme.success : Theme.of(context).colorScheme.error,
                                 ),
                               ),
                               Wrap(

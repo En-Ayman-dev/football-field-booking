@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../../data/models/ball.dart';
 import '../../../../data/models/pitch.dart';
 import '../providers/pitch_ball_provider.dart';
+import '../../../../core/theme/app_theme.dart';
 
 
 class ManagePitchesBallsScreen extends StatefulWidget {
@@ -354,7 +355,7 @@ class _ManagePitchesBallsScreenState extends State<ManagePitchesBallsScreen> {
                 Text(
                   pitch.isActive ? 'حالة: نشط' : 'حالة: غير نشط',
                   style: TextStyle(
-                    color: pitch.isActive ? Colors.green : Colors.red,
+                    color: pitch.isActive ? AppTheme.success : Theme.of(context).colorScheme.error,
                   ),
                 ),
               ],
@@ -416,7 +417,7 @@ class _ManagePitchesBallsScreenState extends State<ManagePitchesBallsScreen> {
                 Text(
                   ball.isAvailable ? 'متاحة' : 'غير متاحة',
                   style: TextStyle(
-                    color: ball.isAvailable ? Colors.green : Colors.red,
+                    color: ball.isAvailable ? AppTheme.success : Theme.of(context).colorScheme.error,
                   ),
                 ),
               ],
