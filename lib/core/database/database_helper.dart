@@ -18,7 +18,7 @@ class DatabaseHelper {
 
   static const String _databaseName = 'arena_manager.db';
   // Bump version when schema changes. Increment to trigger onUpgrade for existing DBs.
-  static const int _databaseVersion = 4;
+  static const int _databaseVersion = 5;
 
   // أسماء الجداول
   static const String tableUsers = 'users';
@@ -27,6 +27,7 @@ class DatabaseHelper {
   static const String tableBalls = 'balls';
   static const String tableBookings = 'bookings';
   static const String tableSyncStatus = 'sync_status';
+  static const String tableDepositRequests = 'deposit_requests';
 
   Future<Database> get database async {
     if (_database != null) {
@@ -162,6 +163,25 @@ class DatabaseHelper {
     ''');
 
     await batch.commit();
+
+    // جدول طلبات التوريد (طلبات إيداع المبالغ للمدير)
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS $tableDepositRequests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        note TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        processed_by INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        processed_at TEXT,
+        is_dirty INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES $tableUsers (id) ON DELETE CASCADE,
+        FOREIGN KEY (processed_by) REFERENCES $tableUsers (id) ON DELETE SET NULL
+      );
+    ''');
+    await batch.commit();
   }
 
   Future<void> _onUpgrade(
@@ -255,6 +275,32 @@ class DatabaseHelper {
         }
       } catch (e) {
         if (kDebugMode) print('Error while applying bookings optional columns: $e');
+      }
+
+      // Ensure deposit requests table exists on databases upgraded from older versions
+      try {
+        final depositInfo = await db.rawQuery('PRAGMA table_info($tableDepositRequests)');
+        if (depositInfo.isEmpty) {
+          if (kDebugMode) print('Creating table $tableDepositRequests on upgrade');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS $tableDepositRequests (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL,
+              amount REAL NOT NULL,
+              note TEXT,
+              status TEXT NOT NULL DEFAULT 'pending',
+              processed_by INTEGER,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              processed_at TEXT,
+              is_dirty INTEGER NOT NULL DEFAULT 0,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (user_id) REFERENCES $tableUsers (id) ON DELETE CASCADE,
+              FOREIGN KEY (processed_by) REFERENCES $tableUsers (id) ON DELETE SET NULL
+            );
+          ''');
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error while creating $tableDepositRequests during upgrade: $e');
       }
     }
   }

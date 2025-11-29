@@ -11,6 +11,7 @@ import 'core/session/session_manager.dart';
 import 'core/settings/settings_notifier.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
+import 'features/deposits/presentation/providers/deposit_provider.dart';
 import 'features/dashboard/presentation/pages/dashboard_screen.dart' as dashboard;
 import 'features/booking/presentation/pages/booking_list_screen.dart' as bookings;
 import 'features/auth/presentation/pages/login_screen.dart' as auth;
@@ -37,6 +38,7 @@ Future<void> main() async {
         ChangeNotifierProvider<AuthProvider>(
           create: (_) => AuthProvider()..loadCurrentUser(),
         ),
+        ChangeNotifierProvider<DepositProvider>(create: (_) => DepositProvider()),
       ],
       child: const ArenaManagerApp(),
     ),

@@ -10,6 +10,8 @@ import '../../../pitches_balls/presentation/screens/manage_pitches_balls_screen.
 import '../../../pitches_balls/presentation/screens/manage_staff_screen.dart';
 import '../../../bookings/presentation/screens/add_booking_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
+import '../../../deposits/presentation/screens/admin_deposit_requests_screen.dart';
+import '../../../deposits/presentation/screens/worker_deposits_screen.dart';
 
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -53,6 +55,7 @@ class AdminDashboardScreen extends StatelessWidget {
     final auth = Provider.of<AuthProvider>(context);
     final user = auth.currentUser;
     final isAdmin = auth.isAdmin;
+    final isStaff = auth.isStaff;
     final canManagePitches = isAdmin || (user?.canManagePitches ?? false);
     final canManageCoaches = isAdmin || (user?.canManageCoaches ?? false);
     final canManageStaff = isAdmin; // restrict staff management to admin only
@@ -165,6 +168,19 @@ class AdminDashboardScreen extends StatelessWidget {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const AddBookingScreen()),
                 ),
+              ),
+              // طلبات التوريد - متاحة للمدير والموظفين
+              if (isAdmin || isStaff) _DashboardCard(
+                icon: Icons.monetization_on_outlined,
+                title: 'طلبات التوريد',
+                subtitle: 'عرض وإدارة طلبات التوريد',
+                onTap: () {
+                  if (isAdmin) {
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminDepositRequestsScreen()));
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WorkerDepositsScreen()));
+                  }
+                },
               ),
             ],
           ),

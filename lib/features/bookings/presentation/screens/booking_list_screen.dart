@@ -77,8 +77,8 @@ class _BookingListScreenState extends State<BookingListScreen> {
         ),
       child: Builder(
         builder: (providerContext) {
-          final _auth = Provider.of<AuthProvider>(providerContext);
-          final _canAddBooking = _auth.isAdmin || (_auth.currentUser?.canManageBookings ?? false);
+          final auth0 = Provider.of<AuthProvider>(providerContext);
+          final canAddBooking = auth0.isAdmin || (auth0.currentUser?.canManageBookings ?? false);
           return Directionality(
             textDirection: ui.TextDirection.ltr,
             child: Scaffold(
@@ -162,7 +162,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
             },
                 
               ),
-              floatingActionButton: _canAddBooking
+              floatingActionButton: canAddBooking
                   ? FloatingActionButton(
                       onPressed: () => _openAddBooking(providerContext),
                       child: const Icon(Icons.add),

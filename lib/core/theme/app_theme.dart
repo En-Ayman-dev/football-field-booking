@@ -65,21 +65,21 @@ class AppTheme {
 
   static final ElevatedButtonThemeData _elevatedButtonTheme = ElevatedButtonThemeData(
     style: ButtonStyle(
-      minimumSize: MaterialStateProperty.all(const Size.fromHeight(54)),
-      padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
-      shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-      elevation: MaterialStateProperty.all(8),
-      shadowColor: MaterialStateProperty.all(primary.withOpacity(0.24)),
-      backgroundColor: MaterialStateProperty.resolveWith((states) => primary),
-      foregroundColor: MaterialStateProperty.all(Colors.white),
+      minimumSize: WidgetStateProperty.all(const Size.fromHeight(54)),
+      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
+      shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+      elevation: WidgetStateProperty.all(8),
+      shadowColor: WidgetStateProperty.all(primary.withOpacity(0.24)),
+      backgroundColor: WidgetStateProperty.resolveWith((states) => primary),
+      foregroundColor: WidgetStateProperty.all(Colors.white),
     ),
   );
 
   static final OutlinedButtonThemeData _outlinedButtonTheme = OutlinedButtonThemeData(
     style: ButtonStyle(
-      minimumSize: MaterialStateProperty.all(const Size.fromHeight(54)),
-      padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
-      shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+      minimumSize: WidgetStateProperty.all(const Size.fromHeight(54)),
+      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
+      shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
     ),
   );
 
@@ -98,22 +98,19 @@ class AppTheme {
       onSecondary: Colors.black,
       error: Colors.red,
       onError: Colors.white,
-      background: const Color(0xFFF6F9F7),
-      onBackground: Colors.black,
       surface: lightCard,
       onSurface: Colors.black,
     );
 
     return base.copyWith(
       colorScheme: colorScheme,
-      useMaterial3: true,
       primaryColor: primary,
-      scaffoldBackgroundColor: colorScheme.background,
+      scaffoldBackgroundColor: colorScheme.surface,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: colorScheme.onBackground,
-        iconTheme: IconThemeData(color: colorScheme.onBackground),
+        foregroundColor: colorScheme.onSurface,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
       cardTheme: _cardTheme,
       inputDecorationTheme: _inputDecorationTheme(Colors.grey[100]!),
@@ -135,8 +132,6 @@ class AppTheme {
       onSecondary: Colors.black,
       error: Colors.red.shade400,
       onError: Colors.white,
-      background: darkSurface,
-      onBackground: Colors.white,
       surface: darkCard,
       onSurface: Colors.white,
     );
