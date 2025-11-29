@@ -3,6 +3,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:football_field_booking_1/data/models/user.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/session/session_manager.dart';
 
 import '../core/database/database_helper.dart';
 
@@ -86,6 +87,10 @@ class AuthProvider extends ChangeNotifier {
       await prefs.setString('current_user_name', _currentUser!.name);
       await prefs.setString('current_user_username', _currentUser!.username);
 
+      // Update session manager so initial route decisions and other parts
+      // of the app can read current user without repeating the database query.
+      await SessionManager.instance.saveUser(_currentUser!);
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -104,6 +109,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _currentUser = null;
     await _clearSession();
+    await SessionManager.instance.clear();
     notifyListeners();
   }
 

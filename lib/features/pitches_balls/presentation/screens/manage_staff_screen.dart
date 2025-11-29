@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../data/models/user.dart';
+import '../../../../providers/auth_provider.dart';
 import '../providers/staff_provider.dart';
 
 class ManageStaffScreen extends StatefulWidget {
@@ -287,6 +288,32 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
             child: Scaffold(
               appBar: AppBar(
                 title: const Text('إدارة الموظفين'),
+                actions: [
+                  IconButton(
+                    tooltip: 'تسجيل خروج',
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('تأكيد'),
+                          content: const Text('هل تريد تسجيل الخروج؟'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
+                          ],
+                        ),
+                      );
+                      if (confirm ?? false) {
+                        final auth = Provider.of<AuthProvider>(context, listen: false);
+                        await auth.logout();
+                        if (context.mounted) {
+                          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.logout),
+                  ),
+                ],
               ),
               body: Consumer<StaffProvider>(
                 builder: (context, provider, _) {

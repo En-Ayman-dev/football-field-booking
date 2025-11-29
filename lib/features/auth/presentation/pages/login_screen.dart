@@ -29,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(ctx).showSnackBar(
-        const SnackBar(content: Text('OU,O�O�OO� O�O_OrOU, OO3U. OU,U.O3O�OrO_U. U^U�U,U.Oc OU,U.O�U^O�.')),
+        const SnackBar(content: Text('يرجى إدخال اسم المستخدم وكلمة المرور.')),
       );
       return;
     }
@@ -39,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!success) {
       ScaffoldMessenger.of(ctx).showSnackBar(
-        SnackBar(content: Text(auth.errorMessage ?? 'O�O1O�O� O�O3O�USU, OU,O_OrU^U,.')),
+        SnackBar(content: Text(auth.errorMessage ?? 'فشل تسجيل الدخول. يرجى التحقق من اسم المستخدم وكلمة المرور.')),
       );
       return;
     }
@@ -73,19 +73,19 @@ class _LoginScreenState extends State<LoginScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('O�O3O�USU, OU,O_OrU^U,')),
+        appBar: AppBar(title: const Text('تسجيل الدخول')),
         body: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
               TextField(
                 controller: _usernameController,
-                decoration: const InputDecoration(labelText: 'OO3U. OU,U.O3O�OrO_U.'),
+                decoration: const InputDecoration(labelText: 'اسم المستخدم'),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: _passwordController,
-                decoration: const InputDecoration(labelText: 'U�U,U.Oc OU,U.O�U^O�'),
+                decoration: const InputDecoration(labelText: 'كلمة المرور'),
                 obscureText: true,
               ),
               const SizedBox(height: 16),

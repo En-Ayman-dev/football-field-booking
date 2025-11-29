@@ -433,6 +433,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/database/database_helper.dart';
+import 'package:sqflite/sqflite.dart';
 import '../../../../data/models/ball.dart';
 import '../../../../data/models/booking.dart';
 import '../../../../data/models/coach.dart';
@@ -749,17 +750,24 @@ class BookingProvider extends ChangeNotifier {
         updatedAt: DateTime.now(),
       );
 
-      final id = await _dbHelper.insert(
-        DatabaseHelper.tableBookings,
-        booking.toMap(),
-      );
+      if (kDebugMode) print('DB inserting booking -> ${booking.toMap()}');
+      // Insert inside a transaction to avoid lock/errors during concurrent ops
+      final db = await _dbHelper.database;
+      final id = await db.transaction<int>((txn) async {
+        final insertedId = await txn.insert(
+          DatabaseHelper.tableBookings,
+          booking.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        return insertedId;
+      });
 
       return id;
     } catch (e) {
       if (kDebugMode) {
         print('Error adding booking: $e');
       }
-      _errorMessage = 'تعذر حفظ الحجز.';
+      _errorMessage = kDebugMode ? 'تعذر حفظ الحجز. (خطأ: ${e.toString()})' : 'تعذر حفظ الحجز.';
       notifyListeners();
       return null;
     }

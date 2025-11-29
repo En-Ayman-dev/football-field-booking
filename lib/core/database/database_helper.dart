@@ -18,7 +18,7 @@ class DatabaseHelper {
 
   static const String _databaseName = 'arena_manager.db';
   // Bump version when schema changes. Increment to trigger onUpgrade for existing DBs.
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
 
   // أسماء الجداول
   static const String tableUsers = 'users';
@@ -211,6 +211,51 @@ class DatabaseHelper {
         // more robust logging could be added here.
         if (kDebugMode) print('Error while applying user table upgrades: $e');
       }
+
+      // Also ensure bookings has the required new columns (staff_wage, coach_wage, period)
+      try {
+        final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
+        final hasStaffWage = bookingInfo.any((col) => (col['name'] as String?) == 'staff_wage');
+        if (!hasStaffWage) {
+          if (kDebugMode) print('Adding column staff_wage to $tableBookings');
+          await db.execute('ALTER TABLE $tableBookings ADD COLUMN staff_wage REAL');
+        }
+
+        final hasCoachWage = bookingInfo.any((col) => (col['name'] as String?) == 'coach_wage');
+        if (!hasCoachWage) {
+          if (kDebugMode) print('Adding column coach_wage to $tableBookings');
+          await db.execute('ALTER TABLE $tableBookings ADD COLUMN coach_wage REAL');
+        }
+
+        final hasPeriod = bookingInfo.any((col) => (col['name'] as String?) == 'period');
+        if (!hasPeriod) {
+          if (kDebugMode) print('Adding column period to $tableBookings');
+          await db.execute('ALTER TABLE $tableBookings ADD COLUMN period TEXT');
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error while applying bookings table upgrades: $e');
+      }
+      
+      // For older DBs, ensure any additional columns used by Booking model exist.
+      try {
+        final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
+        final expectedColumns = <String, String>{
+          'team_name': 'TEXT',
+          'customer_phone': 'TEXT',
+        };
+
+        for (final entry in expectedColumns.entries) {
+          final name = entry.key;
+          final colType = entry.value;
+          final hasCol = bookingInfo.any((c) => (c['name'] as String?) == name);
+          if (!hasCol) {
+            if (kDebugMode) print('Adding column $name to $tableBookings');
+            await db.execute('ALTER TABLE $tableBookings ADD COLUMN $name $colType');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error while applying bookings optional columns: $e');
+      }
     }
   }
 
@@ -358,35 +403,48 @@ class DatabaseHelper {
   // Seed Admin
   Future<void> seedAdminUser() async {
     final db = await database;
-
-    final existing = await db.query(
+    // Try to find an existing admin by username. If it exists update it to ensure
+    // the seeded credentials are set; otherwise insert a new admin record.
+    final existingAdmin = await db.query(
       tableUsers,
+      where: 'username = ?',
+      whereArgs: ['admin'],
       limit: 1,
     );
 
-    if (existing.isNotEmpty) {
-      return;
-    }
+    final adminValues = {
+      'name': 'مدير النظام',
+      'username': 'admin',
+      'password': '123456',
+      'phone': null,
+      'email': null,
+      'role': 'admin',
+      'is_active': 1,
+      'wage_per_booking': null,
+      'can_manage_pitches': 1,
+      'can_manage_coaches': 1,
+      'can_manage_bookings': 1,
+      'can_view_reports': 1,
+      'is_dirty': 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
 
-    await db.insert(
+    if (existingAdmin.isNotEmpty) {
+      if (kDebugMode) print('Updating existing admin user to seeded credentials: ${existingAdmin.first}');
+      await db.update(
+        tableUsers,
+        adminValues,
+        where: 'username = ?',
+        whereArgs: ['admin'],
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } else {
+      final id = await db.insert(
       tableUsers,
-      {
-        'name': 'مدير النظام',
-        'username': 'admin',
-        'password': 'admin123',
-        'phone': null,
-        'email': null,
-        'role': 'admin',
-        'is_active': 1,
-        'wage_per_booking': null,
-        'can_manage_pitches': 1,
-        'can_manage_coaches': 1,
-        'can_manage_bookings': 1,
-        'can_view_reports': 1,
-        'is_dirty': 0,
-        'updated_at': DateTime.now().toIso8601String(),
-      },
+        adminValues,
       conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+      );
+      if (kDebugMode) print('Inserted admin user with id: $id');
+    }
   }
 }

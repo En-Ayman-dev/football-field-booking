@@ -76,7 +76,33 @@ class _BookingListScreenState extends State<BookingListScreen> {
           return Directionality(
             textDirection: ui.TextDirection.ltr,
             child: Scaffold(
-              appBar: AppBar(title: const Text('قائمة الحجوزات')),
+              appBar: AppBar(
+                title: const Text('قائمة الحجوزات'),
+                actions: [
+                  IconButton(
+                    tooltip: 'تسجيل خروج',
+                    icon: const Icon(Icons.logout),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('تأكيد'),
+                          content: const Text('هل تريد تسجيل الخروج؟'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
+                          ],
+                        ),
+                      );
+                      if (confirm ?? false) {
+                        final auth = Provider.of<AuthProvider>(context, listen: false);
+                        await auth.logout();
+                        if (context.mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                      }
+                    },
+                  ),
+                ],
+              ),
               body: Consumer<BookingProvider>(
                 builder: (context, provider, _) {
               final auth = Provider.of<AuthProvider>(context);

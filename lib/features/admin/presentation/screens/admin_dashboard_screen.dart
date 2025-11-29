@@ -1,14 +1,15 @@
 // ignore_for_file: deprecated_member_use
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide SizedBox;
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
-
 import '../../../../providers/auth_provider.dart';
+import '../../../../core/database/database_helper.dart';
 import '../../../pitches_balls/presentation/screens/manage_coaches_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_pitches_balls_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_staff_screen.dart';
 import '../../../bookings/presentation/screens/add_booking_screen.dart';
+import '../../../settings/presentation/screens/settings_screen.dart';
 
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -56,6 +57,28 @@ class AdminDashboardScreen extends StatelessWidget {
           title: const Text('لوحة تحكم المدير'),
           centerTitle: true,
           actions: [
+            IconButton(
+              tooltip: 'Debug DB',
+              onPressed: () async {
+                try {
+                  final dbHelper = DatabaseHelper();
+                  final usersCount = (await dbHelper.rawQuery('SELECT COUNT(*) as c FROM ${DatabaseHelper.tableUsers}'));
+                  final pitchesCount = (await dbHelper.rawQuery('SELECT COUNT(*) as c FROM ${DatabaseHelper.tablePitches}'));
+                  final bookingsCount = (await dbHelper.rawQuery('SELECT COUNT(*) as c FROM ${DatabaseHelper.tableBookings}'));
+                  final u = usersCount.first['c'];
+                  final p = pitchesCount.first['c'];
+                  final b = bookingsCount.first['c'];
+                  final msg = 'users: $u, pitches: $p, bookings: $b';
+                  if (kDebugMode) print(msg);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                  }
+                } catch (e) {
+                  if (kDebugMode) print('DB debug failed: $e');
+                }
+              },
+              icon: const Icon(Icons.bug_report),
+            ),
             IconButton(
               tooltip: 'تسجيل خروج',
               onPressed: () async {
@@ -112,6 +135,20 @@ class AdminDashboardScreen extends StatelessWidget {
                 title: 'التقارير',
                 subtitle: 'عرض تقارير الحجوزات',
                 onTap: () => _openReports(context),
+              ),
+              _DashboardCard(
+                icon: Icons.list_alt,
+                title: 'قائمة الحجوزات',
+                subtitle: 'عرض كافة الحجوزات',
+                onTap: () => Navigator.of(context).pushNamed('/bookings'),
+              ),
+              _DashboardCard(
+                icon: Icons.settings,
+                title: 'الإعدادات',
+                subtitle: 'إعدادات التطبيق',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
               ),
               _DashboardCard(
                 icon: Icons.add_box_outlined,

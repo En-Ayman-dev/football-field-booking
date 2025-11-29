@@ -126,6 +126,16 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
       return;
     }
 
+    // Permissions: ensure user can manage bookings
+    if (!currentUser.canManageBookings) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ليس لديك صلاحية إنشاء الحجوزات.'),
+        ),
+      );
+      return;
+    }
+
     _formKey.currentState?.save();
 
     final now = DateTime.now();
@@ -166,8 +176,10 @@ class _AddBookingScreenState extends State<AddBookingScreen> {
       Navigator.of(context).pop();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تعذر حفظ الحجز.'),
+        SnackBar(
+          content: Text(
+            bookingProvider.errorMessage ?? 'تعذر حفظ الحجز.',
+          ),
         ),
       );
     }
