@@ -45,6 +45,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
         date: _selectedDate,
         pitchId: _selectedPitchId,
         period: _selectedPeriod == 'all' ? null : _selectedPeriod,
+        keepExistingFiltersIfNull: false,
       );
     }
   }
@@ -59,6 +60,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
       date: _selectedDate,
       pitchId: _selectedPitchId,
       period: _selectedPeriod == 'all' ? null : _selectedPeriod,
+      keepExistingFiltersIfNull: false,
     );
   }
 
@@ -71,9 +73,12 @@ class _BookingListScreenState extends State<BookingListScreen> {
           date: _selectedDate,
           pitchId: _selectedPitchId,
           period: _selectedPeriod == 'all' ? null : _selectedPeriod,
+          keepExistingFiltersIfNull: false,
         ),
       child: Builder(
         builder: (providerContext) {
+          final _auth = Provider.of<AuthProvider>(providerContext);
+          final _canAddBooking = _auth.isAdmin || (_auth.currentUser?.canManageBookings ?? false);
           return Directionality(
             textDirection: ui.TextDirection.ltr,
             child: Scaffold(
@@ -157,10 +162,12 @@ class _BookingListScreenState extends State<BookingListScreen> {
             },
                 
               ),
-              floatingActionButton: FloatingActionButton(
-                onPressed: () => _openAddBooking(providerContext),
-                child: const Icon(Icons.add),
-              ),
+              floatingActionButton: _canAddBooking
+                  ? FloatingActionButton(
+                      onPressed: () => _openAddBooking(providerContext),
+                      child: const Icon(Icons.add),
+                    )
+                  : null,
             ),
           );
         },
@@ -242,6 +249,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
                         period: _selectedPeriod == 'all'
                             ? null
                             : _selectedPeriod,
+                        keepExistingFiltersIfNull: false,
                       );
                     },
                   ),
@@ -299,6 +307,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
           date: _selectedDate,
           pitchId: _selectedPitchId,
           period: _selectedPeriod == 'all' ? null : _selectedPeriod,
+          keepExistingFiltersIfNull: false,
         );
       },
     );

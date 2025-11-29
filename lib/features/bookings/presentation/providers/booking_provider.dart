@@ -1052,14 +1052,23 @@ class BookingProvider extends ChangeNotifier {
     DateTime? date,
     int? pitchId,
     String? period,
+    /// If true (default), null values for pitchId/period will keep the previous filters.
+    /// If false, passing null will explicitly clear those filters (e.g., select "All").
+    bool keepExistingFiltersIfNull = true,
   }) async {
     _isLoading = true;
     _errorMessage = null;
 
     // تحديث الفلاتر الحالية
     _currentFilterDate = date ?? _currentFilterDate ?? DateTime.now();
-    _currentFilterPitchId = pitchId ?? _currentFilterPitchId;
-    _currentFilterPeriod = period ?? _currentFilterPeriod;
+    if (keepExistingFiltersIfNull) {
+      _currentFilterPitchId = pitchId ?? _currentFilterPitchId;
+      _currentFilterPeriod = period ?? _currentFilterPeriod;
+    } else {
+      // treat provided nulls as an explicit request to clear the filter
+      _currentFilterPitchId = pitchId;
+      _currentFilterPeriod = period;
+    }
 
     notifyListeners();
 

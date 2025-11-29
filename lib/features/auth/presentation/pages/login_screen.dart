@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously, depend_on_referenced_packages
+// ignore_for_file: use_build_context_synchronously, depend_on_referenced_packages, deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -63,7 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (role == 'admin') {
       Navigator.of(ctx).pushNamedAndRemoveUntil('/dashboard', (route) => false);
     } else {
-      Navigator.of(ctx).pushNamedAndRemoveUntil('/bookings', (route) => false);
+      // Redirect staff to dashboard so they see pages according to their permissions
+      Navigator.of(ctx).pushNamedAndRemoveUntil('/dashboard', (route) => false);
     }
   }
 
@@ -80,14 +81,14 @@ class _LoginScreenState extends State<LoginScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          foregroundColor: colorScheme.onBackground,
-          title: const Text('تسجيل الدخول'),
+          foregroundColor: colorScheme.onSurface,
+          title: Center(child: const Text('تسجيل الدخول',textAlign: TextAlign.center,)),
         ),
         body: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                colorScheme.background.withOpacity(0.98),
+                colorScheme.surface.withOpacity(0.98),
                 colorScheme.surfaceVariant.withOpacity(0.02),
               ],
               begin: Alignment.topLeft,

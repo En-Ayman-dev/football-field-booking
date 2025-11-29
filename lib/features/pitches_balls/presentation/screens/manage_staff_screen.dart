@@ -39,7 +39,7 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
     bool isActive = user?.isActive ?? true;
     bool canManagePitches = user?.canManagePitches ?? false;
     bool canManageCoaches = user?.canManageCoaches ?? false;
-    bool canManageBookings = user?.canManageBookings ?? true;
+    bool canManageBookings = user?.canManageBookings ?? false;
     bool canViewReports = user?.canViewReports ?? false;
 
     showModalBottomSheet(

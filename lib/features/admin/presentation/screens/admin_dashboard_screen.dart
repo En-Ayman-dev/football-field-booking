@@ -50,6 +50,14 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
+    final user = auth.currentUser;
+    final isAdmin = auth.isAdmin;
+    final canManagePitches = isAdmin || (user?.canManagePitches ?? false);
+    final canManageCoaches = isAdmin || (user?.canManageCoaches ?? false);
+    final canManageStaff = isAdmin; // restrict staff management to admin only
+    final canViewReports = isAdmin || (user?.canViewReports ?? false);
+    final canManageBookings = isAdmin || (user?.canManageBookings ?? false);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -111,38 +119,38 @@ class AdminDashboardScreen extends StatelessWidget {
             crossAxisCount: 2,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            children: [
-              _DashboardCard(
+          children: [
+              if (canManageStaff) _DashboardCard(
                 icon: Icons.people_alt_outlined,
                 title: 'العمال / الموظفون',
                 subtitle: 'إدارة حسابات العاملين',
                 onTap: () => _openManageStaff(context),
               ),
-              _DashboardCard(
+              if (canManageCoaches) _DashboardCard(
                 icon: Icons.sports_soccer_outlined,
                 title: 'المدربون',
                 subtitle: 'إدارة بيانات المدربين',
                 onTap: () => _openManageCoaches(context),
               ),
-              _DashboardCard(
+              if (canManagePitches) _DashboardCard(
                 icon: Icons.stadium_outlined,
                 title: 'الملاعب والكرات',
                 subtitle: 'إدارة الملاعب والكرات',
                 onTap: () => _openManagePitchesBalls(context),
               ),
-              _DashboardCard(
+              if (canViewReports) _DashboardCard(
                 icon: Icons.insert_chart_outlined,
                 title: 'التقارير',
                 subtitle: 'عرض تقارير الحجوزات',
                 onTap: () => _openReports(context),
               ),
-              _DashboardCard(
+              if (canManageBookings) _DashboardCard(
                 icon: Icons.list_alt,
                 title: 'قائمة الحجوزات',
                 subtitle: 'عرض كافة الحجوزات',
                 onTap: () => Navigator.of(context).pushNamed('/bookings'),
               ),
-              _DashboardCard(
+              if (isAdmin) _DashboardCard(
                 icon: Icons.settings,
                 title: 'الإعدادات',
                 subtitle: 'إعدادات التطبيق',
@@ -150,7 +158,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 ),
               ),
-              _DashboardCard(
+              if (canManageBookings) _DashboardCard(
                 icon: Icons.add_box_outlined,
                 title: 'إنشاء حجز',
                 subtitle: 'إضافة حجز جديد',
@@ -161,13 +169,15 @@ class AdminDashboardScreen extends StatelessWidget {
             ],
           ),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AddBookingScreen()),
-          ),
-          label: const Text('حجز جديد'),
-          icon: const Icon(Icons.add_box_outlined),
-        ),
+        floatingActionButton: canManageBookings
+            ? FloatingActionButton.extended(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AddBookingScreen()),
+                ),
+                label: const Text('حجز جديد'),
+                icon: const Icon(Icons.add_box_outlined),
+              )
+            : null,
       ),
     );
   }
