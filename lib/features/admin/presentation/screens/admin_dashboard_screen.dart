@@ -37,8 +37,37 @@ class AdminDashboardScreen extends StatelessWidget {
   void _openReports(BuildContext context) {
     // سيتم تنفيذ شاشة التقارير لاحقاً
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('شاشة التقارير سيتم تنفيذها لاحقاً.')),
+      const SnackBar(content: Text('شاشة التقارير سيتم تنفيذها لاحقاً.')),
     );
+  }
+
+  Future<void> _performLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد'),
+        content: const Text('هل تريد تسجيل الخروج؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('لا'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('نعم'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      // 1. التوجيه فوراً لتجنب أي مشاكل تتعلق بحالة المستخدم أو السياق
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      
+      // 2. تنفيذ تسجيل الخروج في الخلفية بعد مغادرة الشاشة
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      await auth.logout();
+    }
   }
 
   @override
@@ -52,6 +81,7 @@ class AdminDashboardScreen extends StatelessWidget {
     final canManageStaff = isAdmin; // restrict staff management to admin only
     final canViewReports = isAdmin || (user?.canViewReports ?? false);
     final canManageBookings = isAdmin || (user?.canManageBookings ?? false);
+    
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -91,42 +121,7 @@ class AdminDashboardScreen extends StatelessWidget {
             ),
             IconButton(
               tooltip: 'تسجيل خروج',
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('تأكيد'),
-                    content: const Text('هل تريد تسجيل الخروج؟'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(false),
-                        child: const Text('لا'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(true),
-                        child: const Text('نعم'),
-                      ),
-                    ],
-                  ),
-                );
-
-                if (confirm ?? false) {
-                  final auth = Provider.of<AuthProvider>(
-                    context,
-                    listen: false,
-                  );
-                  await auth.logout();
-
-                  // 🔥 حل مضمون
-                  await Future.delayed(const Duration(milliseconds: 100));
-
-                  if (context.mounted) {
-                    Navigator.of(
-                      context,
-                    ).pushNamedAndRemoveUntil('/login', (route) => false);
-                  }
-                }
-              },
+              onPressed: () => _performLogout(context),
               icon: const Icon(Icons.logout),
             ),
           ],

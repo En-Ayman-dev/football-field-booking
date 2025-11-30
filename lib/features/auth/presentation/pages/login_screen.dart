@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../providers/auth_provider.dart';
+// إضافة استيراد قاعدة البيانات للتشخيص المباشر
+import '../../../../core/database/database_helper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,6 +23,57 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // 🛠️ أداة التشخيص: عرض محتوى جدول المستخدمين
+  Future<void> _showDiagnostics(BuildContext context) async {
+    try {
+      final dbHelper = DatabaseHelper();
+      final users = await dbHelper.getAll(DatabaseHelper.tableUsers);
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تشخيص النظام (Debug Mode)'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: users.isEmpty
+                ? const Center(child: Text('قاعدة البيانات فارغة!'))
+                : ListView.separated(
+                    itemCount: users.length,
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (ctx, i) {
+                      final u = users[i];
+                      final pass = u['password'];
+                      final passType = pass.runtimeType;
+                      return ListTile(
+                        dense: true,
+                        title: Text('${u['name']} (ID: ${u['id']})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: SelectableText(
+                          'User: ${u['username']}\n'
+                          'Pass: "$pass" (Type: $passType)\n'
+                          'Active: ${u['is_active']}\n'
+                          'Role: ${u['role']}',
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ في التشخيص: $e')));
+    }
   }
 
   Future<void> _login(BuildContext ctx, {String? expectedRole}) async {
@@ -82,7 +135,15 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           foregroundColor: colorScheme.onSurface,
-          title: Center(child: const Text('تسجيل الدخول',textAlign: TextAlign.center,)),
+          // إضافة زر التشخيص هنا
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.bug_report, color: Colors.red),
+              tooltip: 'فحص قاعدة البيانات',
+              onPressed: () => _showDiagnostics(context),
+            ),
+          ],
+          title: const Center(child: Text('تسجيل الدخول', textAlign: TextAlign.center)),
         ),
         body: Container(
           decoration: BoxDecoration(

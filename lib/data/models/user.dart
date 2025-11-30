@@ -92,24 +92,42 @@ class User {
     };
   }
 
+  // Helper safely converts any value to int (0 if null/fail)
+  static int _parseInt(dynamic value, {int defaultValue = 0}) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    return int.tryParse(value.toString()) ?? defaultValue;
+  }
+
+  // Helper safely converts any value to double (null if fail)
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
   factory User.fromMap(Map<String, dynamic> map) {
     return User(
-      id: map['id'] as int?,
-      name: map['name'] as String? ?? '',
-      username: map['username'] as String? ?? '',
-      password: map['password'] as String? ?? '',
-      phone: map['phone'] as String?,
-      email: map['email'] as String?,
-      role: map['role'] as String? ?? 'staff',
-      isActive: (map['is_active'] as int? ?? 1) == 1,
-      wagePerBooking: map['wage_per_booking'] != null
-          ? (map['wage_per_booking'] as num).toDouble()
-          : null,
-      canManagePitches: (map['can_manage_pitches'] as int? ?? 0) == 1,
-      canManageCoaches: (map['can_manage_coaches'] as int? ?? 0) == 1,
-      canManageBookings: (map['can_manage_bookings'] as int? ?? 0) == 1,
-      canViewReports: (map['can_view_reports'] as int? ?? 0) == 1,
-      isDirty: (map['is_dirty'] as int? ?? 0) == 1,
+      id: _parseInt(map['id'], defaultValue: 0) == 0 ? null : _parseInt(map['id']),
+      name: map['name']?.toString() ?? '',
+      username: map['username']?.toString() ?? '',
+      password: map['password']?.toString() ?? '',
+      phone: map['phone']?.toString(),
+      email: map['email']?.toString(),
+      role: map['role']?.toString() ?? 'staff',
+      
+      // التعامل الآمن مع القيم المنطقية المخزنة كأرقام
+      isActive: _parseInt(map['is_active'], defaultValue: 1) == 1,
+      
+      // التعامل الآمن مع الأرقام العشرية
+      wagePerBooking: _parseDouble(map['wage_per_booking']),
+      
+      canManagePitches: _parseInt(map['can_manage_pitches']) == 1,
+      canManageCoaches: _parseInt(map['can_manage_coaches']) == 1,
+      canManageBookings: _parseInt(map['can_manage_bookings']) == 1,
+      canViewReports: _parseInt(map['can_view_reports']) == 1,
+      isDirty: _parseInt(map['is_dirty']) == 1,
+      
       updatedAt: DateTime.tryParse(map['updated_at']?.toString() ?? '') ??
           DateTime.now(),
     );

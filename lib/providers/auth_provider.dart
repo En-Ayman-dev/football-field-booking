@@ -7,8 +7,6 @@ import '../core/session/session_manager.dart';
 
 import '../core/database/database_helper.dart';
 
-
-
 class AuthProvider extends ChangeNotifier {
   final DatabaseHelper _dbHelper;
 
@@ -27,7 +25,6 @@ class AuthProvider extends ChangeNotifier {
   bool get isAdmin => _currentUser?.isAdmin ?? false;
   bool get isStaff => _currentUser?.isStaff ?? false;
 
-  /// تحميل المستخدم الحالي من SharedPreferences عند بدء التطبيق
   Future<void> loadCurrentUser() async {
     _isLoading = true;
     notifyListeners();
@@ -54,58 +51,96 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  /// تسجيل الدخول (وضع طوارئ: بدون قاعدة بيانات)
-  Future<bool> login(String username, String password) async {
+
+  Future<bool> login(String inputName, String password) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
+    final normalizedInput = inputName.trim();
+    final normalizedPassword = password.trim();
+
     try {
-      final normalizedUsername = username.trim();
+      final db = await _dbHelper.database;
+      
+      // البحث باسم المستخدم أو الاسم الكامل
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseHelper.tableUsers,
+        where: 'username = ? OR name = ?',
+        whereArgs: [normalizedInput, normalizedInput],
+        limit: 1,
+      );
 
-      // ✅ حساب الأدمن الثابت: يدخل بدون أي تعامل مع قاعدة البيانات
-      if (normalizedUsername == 'admin' && password == '123456') {
-        _currentUser = User(
-          id: 1,
-          name: 'مدير النظام',
-          username: 'admin',
-          password: '123456',
-          phone: null,
-          email: null,
-          role: 'admin',
-          isActive: true,
-          wagePerBooking: null,
-          canManagePitches: true,
-          canManageCoaches: true,
-          canManageBookings: true,
-          canViewReports: true,
-          isDirty: false,
-          updatedAt: DateTime.now(),
-        );
+      if (maps.isNotEmpty) {
+        // محاولة تحويل البيانات (هنا كان يحدث الانهيار سابقاً)
+        final user = User.fromMap(maps.first);
 
-        _isLoading = false;
-        notifyListeners();
-        return true;
+        if (user.password == normalizedPassword) {
+          if (!user.isActive) {
+            _errorMessage = 'عذراً، هذا الحساب تم تعطيله.';
+            _isLoading = false;
+            notifyListeners();
+            return false;
+          }
+
+          _currentUser = user;
+          await SessionManager.instance.saveUser(user);
+
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        } else {
+          _errorMessage = 'كلمة المرور غير صحيحة.';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      } else {
+        _errorMessage = 'لا يوجد حساب بهذا الاسم.';
       }
-
-      // باقي الحسابات (لو عندك عملاء/موظفين ثانيين) نعتبرها الآن غير صحيحة
-      _currentUser = null;
-      _errorMessage = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
-      _isLoading = false;
-      notifyListeners();
-      return false;
     } catch (e) {
-      if (kDebugMode) {
-        print('Error during login (emergency mode): $e');
-      }
-      _errorMessage = 'حدث خطأ أثناء محاولة تسجيل الدخول.';
+      // ⚠️ هام: عرض رسالة الخطأ الحقيقية للمستخدم للمساعدة في التشخيص
+      _errorMessage = 'خطأ نظام (APK Error): $e';
+      if (kDebugMode) print('Database login error: $e');
+    }
+
+    // حساب الطوارئ
+    if (normalizedInput == 'admin' && normalizedPassword == '123456') {
+      _currentUser = User(
+        id: 1,
+        name: 'مدير النظام (طوارئ)',
+        username: 'admin',
+        password: '123456',
+        phone: null,
+        email: null,
+        role: 'admin',
+        isActive: true,
+        wagePerBooking: null,
+        canManagePitches: true,
+        canManageCoaches: true,
+        canManageBookings: true,
+        canViewReports: true,
+        isDirty: false,
+        updatedAt: DateTime.now(),
+      );
+      
+      try {
+        await SessionManager.instance.saveUser(_currentUser!);
+      } catch (_) {}
+
       _isLoading = false;
       notifyListeners();
-      return false;
+      return true;
     }
+
+    if (_errorMessage == null) {
+       _errorMessage = 'بيانات الدخول غير صحيحة.';
+    }
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 
-  /// تسجيل الخروج
   Future<void> logout() async {
     _currentUser = null;
     await _clearSession();

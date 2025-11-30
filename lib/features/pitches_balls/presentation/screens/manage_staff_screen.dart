@@ -22,6 +22,35 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
     super.initState();
   }
 
+  Future<void> _performLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد'),
+        content: const Text('هل تريد تسجيل الخروج؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('لا'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('نعم'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      // 1. التوجيه فوراً للخروج من الشاشة الحالية
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      
+      // 2. تنفيذ عملية تسجيل الخروج الفعلية
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      await auth.logout();
+    }
+  }
+
   void _showStaffForm(BuildContext context, {User? user}) {
     final staffProvider = Provider.of<StaffProvider>(context, listen: false);
     final nameController = TextEditingController(text: user?.name ?? '');
@@ -56,7 +85,7 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
               left: 16,
             ),
             child: StatefulBuilder(
-                builder: (context, setStateSheet) {
+              builder: (context, setStateSheet) {
                 final provider = staffProvider;
                 return SingleChildScrollView(
                   child: Column(
@@ -67,8 +96,7 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 16),
-                      // local saving state to prevent double submissions (isSaving in outer scope)
-                      // error message
+                      // Error message
                       Builder(builder: (ctx) {
                         final error = staffProvider.errorMessage;
                         if (error == null || error.isEmpty) {
@@ -182,35 +210,24 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                           onPressed: provider.isSaving
                               ? null
                               : () async {
-                                  // provider will hold the saving state
                                   final provider = staffProvider;
                                   provider.clearError();
 
                                   final name = nameController.text.trim();
-                                  final username =
-                                      usernameController.text.trim();
-                                  final password =
-                                      passwordController.text.trim();
+                                  final username = usernameController.text.trim();
+                                  final password = passwordController.text.trim();
 
-                                  if (name.isEmpty ||
-                                      username.isEmpty ||
-                                      password.isEmpty) {
+                                  if (name.isEmpty || username.isEmpty || password.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text(
-                                            'الرجاء إدخال الاسم، اسم المستخدم، وكلمة المرور.'),
+                                        content: Text('الرجاء إدخال الاسم، اسم المستخدم، وكلمة المرور.'),
                                       ),
                                     );
-                                    // provider will clear its saving state
                                     return;
                                   }
 
-                                  final wageText = wageController.text
-                                      .trim()
-                                      .replaceAll(',', '.');
-                                  final wage = wageText.isEmpty
-                                      ? null
-                                      : double.tryParse(wageText);
+                                  final wageText = wageController.text.trim().replaceAll(',', '.');
+                                  final wage = wageText.isEmpty ? null : double.tryParse(wageText);
 
                                   final newUser = User(
                                     id: user?.id,
@@ -218,7 +235,7 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                                     username: username,
                                     password: password,
                                     phone: phoneController.text.trim(),
-                                    email: user?.email, // غير مستخدم حالياً
+                                    email: user?.email,
                                     role: 'staff',
                                     isActive: isActive,
                                     wagePerBooking: wage,
@@ -231,31 +248,22 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                                   );
 
                                   if (kDebugMode) {
-                                    print(
-                                        'Attempting to save staff: ${newUser.toMap()}');
+                                    print('Attempting to save staff: ${newUser.toMap()}');
                                   }
-                                  final success =
-                                      await provider.addOrUpdateStaff(newUser);
-                                  // provider will clear its saving state
+                                  final success = await provider.addOrUpdateStaff(newUser);
                                   if (success) {
-                                    if (mounted) {
-                                      Navigator.of(ctx).pop();
-                                    }
+                                    if (mounted) Navigator.of(ctx).pop();
                                   } else {
                                     if (context.mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
+                                      ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          content: Text(
-                                            provider.errorMessage ??
-                                                'تعذر حفظ بيانات الموظف.',
-                                          ),
+                                          content: Text(provider.errorMessage ?? 'تعذر حفظ بيانات الموظف.'),
                                         ),
                                       );
                                     }
                                   }
                                 },
-                                  child: provider.isSaving
+                          child: provider.isSaving
                               ? SizedBox(
                                   height: 16,
                                   width: 16,
@@ -292,26 +300,7 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                 actions: [
                   IconButton(
                     tooltip: 'تسجيل خروج',
-                    onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('تأكيد'),
-                          content: const Text('هل تريد تسجيل الخروج؟'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
-                            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
-                          ],
-                        ),
-                      );
-                      if (confirm ?? false) {
-                        final auth = Provider.of<AuthProvider>(context, listen: false);
-                        await auth.logout();
-                        if (context.mounted) {
-                          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                        }
-                      }
-                    },
+                    onPressed: () => _performLogout(context),
                     icon: const Icon(Icons.logout),
                   ),
                 ],
@@ -319,21 +308,15 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
               body: Consumer<StaffProvider>(
                 builder: (context, provider, _) {
                   if (provider.isLoading) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (provider.errorMessage != null) {
-                    return Center(
-                      child: Text(provider.errorMessage!),
-                    );
+                    return Center(child: Text(provider.errorMessage!));
                   }
 
                   if (provider.staff.isEmpty) {
-                    return const Center(
-                      child: Text('لا يوجد موظفين مسجلين حالياً.'),
-                    );
+                    return const Center(child: Text('لا يوجد موظفين مسجلين حالياً.'));
                   }
 
                   return ListView.builder(
@@ -341,16 +324,14 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                     itemBuilder: (context, index) {
                       final user = provider.staff[index];
                       return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         child: ListTile(
                           title: Text(user.name),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('اسم المستخدم: ${user.username}'),
-                              if (user.phone != null &&
-                                  user.phone!.isNotEmpty)
+                              if (user.phone != null && user.phone!.isNotEmpty)
                                 Text('الجوال: ${user.phone}'),
                               if (user.wagePerBooking != null)
                                 Text('الأجر لكل حجز: ${user.wagePerBooking}'),
@@ -367,29 +348,25 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                                     const Chip(
                                       label: Text('ملاعب'),
                                       visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
                                   if (user.canManageCoaches)
                                     const Chip(
                                       label: Text('مدربون'),
                                       visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
                                   if (user.canManageBookings)
                                     const Chip(
                                       label: Text('حجوزات'),
                                       visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
                                   if (user.canViewReports)
                                     const Chip(
                                       label: Text('تقارير'),
                                       visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
                                 ],
                               ),
@@ -401,16 +378,10 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                                 _showStaffForm(context, user: user);
                               } else if (value == 'toggle') {
                                 provider.clearError();
-                                final success =
-                                    await provider.toggleStaffActive(user);
+                                final success = await provider.toggleStaffActive(user);
                                 if (!success && context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        provider.errorMessage ??
-                                            'تعذر تعديل حالة الموظف.',
-                                      ),
-                                    ),
+                                    SnackBar(content: Text(provider.errorMessage ?? 'تعذر تعديل حالة الموظف.')),
                                   );
                                 }
                               } else if (value == 'delete') {
@@ -419,20 +390,9 @@ class _ManageStaffScreenState extends State<ManageStaffScreen> {
                               }
                             },
                             itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Text('تعديل'),
-                              ),
-                              PopupMenuItem(
-                                value: 'toggle',
-                                child: Text(
-                                  user.isActive ? 'تعطيل' : 'تفعيل',
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('حذف'),
-                              ),
+                              const PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                              PopupMenuItem(value: 'toggle', child: Text(user.isActive ? 'تعطيل' : 'تفعيل')),
+                              const PopupMenuItem(value: 'delete', child: Text('حذف')),
                             ],
                           ),
                         ),

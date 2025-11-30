@@ -64,6 +64,32 @@ class _BookingListScreenState extends State<BookingListScreen> {
     );
   }
 
+  Future<void> _performLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد'),
+        content: const Text('هل تريد تسجيل الخروج؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('لا'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('نعم'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      await auth.logout();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<BookingProvider>(
@@ -88,79 +114,61 @@ class _BookingListScreenState extends State<BookingListScreen> {
                   IconButton(
                     tooltip: 'تسجيل خروج',
                     icon: const Icon(Icons.logout),
-                    onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('تأكيد'),
-                          content: const Text('هل تريد تسجيل الخروج؟'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
-                            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
-                          ],
-                        ),
-                      );
-                      if (confirm ?? false) {
-                        final auth = Provider.of<AuthProvider>(context, listen: false);
-                        await auth.logout();
-                        if (context.mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                      }
-                    },
+                    onPressed: () => _performLogout(context),
                   ),
                 ],
               ),
               body: Consumer<BookingProvider>(
                 builder: (context, provider, _) {
-              final auth = Provider.of<AuthProvider>(context);
-              final isAdmin = auth.isAdmin;
+                  final auth = Provider.of<AuthProvider>(context);
+                  final isAdmin = auth.isAdmin;
 
-              if (provider.isLoading && provider.bookings.isEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              }
+                  if (provider.isLoading && provider.bookings.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-              if (provider.errorMessage != null && provider.bookings.isEmpty) {
-                return Center(child: Text(provider.errorMessage!));
-              }
+                  if (provider.errorMessage != null && provider.bookings.isEmpty) {
+                    return Center(child: Text(provider.errorMessage!));
+                  }
 
-              return Column(
-                children: [
-                  _buildFiltersBar(context, provider),
-                  const Divider(height: 0),
-                  Expanded(
-                    child: provider.bookings.isEmpty
-                        ? const Center(
-                            child: Text('لا توجد حجوزات لهذا اليوم.'),
-                          )
-                        : ListView.builder(
-                            itemCount: provider.bookings.length,
-                            itemBuilder: (context, index) {
-                              final booking = provider.bookings[index];
-                              final pitch = provider.pitches.firstWhere(
-                                (p) => p.id == booking.pitchId,
-                                orElse: () => Pitch(
-                                  id: booking.pitchId,
-                                  name: 'ملعب ${booking.pitchId}',
-                                  location: null,
-                                  pricePerHour: null,
-                                  isIndoor: false,
-                                  isActive: true,
-                                  isDirty: false,
-                                  updatedAt: booking.updatedAt,
-                                ),
-                              );
-                              return _buildBookingCard(
-                                context: context,
-                                booking: booking,
-                                pitch: pitch,
-                                isAdmin: isAdmin,
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              );
-            },
-                
+                  return Column(
+                    children: [
+                      _buildFiltersBar(context, provider),
+                      const Divider(height: 0),
+                      Expanded(
+                        child: provider.bookings.isEmpty
+                            ? const Center(
+                                child: Text('لا توجد حجوزات لهذا اليوم.'),
+                              )
+                            : ListView.builder(
+                                itemCount: provider.bookings.length,
+                                itemBuilder: (context, index) {
+                                  final booking = provider.bookings[index];
+                                  final pitch = provider.pitches.firstWhere(
+                                    (p) => p.id == booking.pitchId,
+                                    orElse: () => Pitch(
+                                      id: booking.pitchId,
+                                      name: 'ملعب ${booking.pitchId}',
+                                      location: null,
+                                      pricePerHour: null,
+                                      isIndoor: false,
+                                      isActive: true,
+                                      isDirty: false,
+                                      updatedAt: booking.updatedAt,
+                                    ),
+                                  );
+                                  return _buildBookingCard(
+                                    context: context,
+                                    booking: booking,
+                                    pitch: pitch,
+                                    isAdmin: isAdmin,
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  );
+                },
               ),
               floatingActionButton: canAddBooking
                   ? FloatingActionButton(

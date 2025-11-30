@@ -53,78 +53,86 @@ class StaffProvider extends ChangeNotifier {
 
   Future<bool> addOrUpdateStaff(User user) async {
     if (_isSaving) {
-      // Prevent concurrent save operations
       _errorMessage = 'جارٍ حفظ بيانات أخرى. الرجاء الانتظار.';
       notifyListeners();
       return false;
     }
     _isSaving = true;
     notifyListeners();
-    try {
-      // Run unique-check + insert/update inside a single DB transaction to
-      // avoid race conditions (and avoid nested DatabaseHelper calls which
-      // use the same DB instance and can deadlock under contention).
-      final db = await _dbHelper.database;
-      await db.transaction((txn) async {
-        // Ensure username is unique (except for the same record on update)
-        final rows = await txn.query(
-          DatabaseHelper.tableUsers,
-          where: 'username = ?',
-          whereArgs: [user.username],
-          limit: 1,
-        );
-        if (rows.isNotEmpty) {
-          final existingUser = User.fromMap(rows.first);
-          if (user.id == null || existingUser.id != user.id) {
-            // Throw to abort the transaction and be handled below
-            throw Exception('UNIQUE_USERNAME');
-          }
-        }
 
-        if (user.id == null) {
-          if (kDebugMode) {
-            print('Inserting user map: ${user.toMap()}');
-          }
-          final id = await txn.insert(
-            DatabaseHelper.tableUsers,
-            user.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+    try {
+      final db = await _dbHelper.database;
+
+      // 1. التحقق من تكرار اسم المستخدم (خارج المعاملة لتبسيط الأمور)
+      final List<Map<String, dynamic>> existingUsers = await db.query(
+        DatabaseHelper.tableUsers,
+        where: 'username = ?',
+        whereArgs: [user.username],
+        limit: 1,
+      );
+
+      if (existingUsers.isNotEmpty) {
+        final existingUser = User.fromMap(existingUsers.first);
+        // إذا كان معرف المستخدم مختلفاً، فهذا يعني أنه مستخدم آخر بنفس الاسم
+        if (user.id == null || existingUser.id != user.id) {
+          _errorMessage = 'اسم المستخدم موجود مسبقًا. الرجاء اختيار اسم مستخدم آخر.';
+          _isSaving = false;
+          notifyListeners();
+          return false;
+        }
+      }
+
+      // 2. تنفيذ الإضافة أو التحديث
+      if (user.id == null) {
+        if (kDebugMode) {
+          print('Inserting NEW user: ${user.toMap()}');
+        }
+        
+        final id = await db.insert(
+          DatabaseHelper.tableUsers,
+          user.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        if (id > 0) {
           final newUser = user.copyWith(id: id);
           _staff.insert(0, newUser);
+          if (kDebugMode) print('User inserted successfully with ID: $id');
         } else {
-          if (kDebugMode) {
-            print('Updating user id ${user.id} with map: ${user.toMap()}');
-          }
-          final updatedCount = await txn.update(
-            DatabaseHelper.tableUsers,
-            user.toMap(),
-            where: 'id = ?',
-            whereArgs: [user.id],
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-          if (updatedCount > 0) {
-            final index = _staff.indexWhere((u) => u.id == user.id);
-            if (index != -1) {
-              _staff[index] = user;
-            }
-          }
+          throw Exception('Insert failed, ID is 0 or less');
         }
-      });
+
+      } else {
+        if (kDebugMode) {
+          print('Updating user ID ${user.id}: ${user.toMap()}');
+        }
+
+        final updatedCount = await db.update(
+          DatabaseHelper.tableUsers,
+          user.toMap(),
+          where: 'id = ?',
+          whereArgs: [user.id],
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        if (updatedCount > 0) {
+          final index = _staff.indexWhere((u) => u.id == user.id);
+          if (index != -1) {
+            _staff[index] = user;
+          }
+          if (kDebugMode) print('User updated successfully. Rows affected: $updatedCount');
+        }
+      }
+
       _isSaving = false;
       notifyListeners();
       return true;
-    } catch (e, st) {
+
+    } catch (e) {
       if (kDebugMode) {
         print('Error addOrUpdateStaff: $e');
-        print(st);
       }
-      if (e.toString().contains('UNIQUE') || e.toString().contains('unique')) {
-        _errorMessage = 'اسم المستخدم موجود مسبقًا. الرجاء اختيار اسم مستخدم آخر.';
-      } else {
-        // For debugging we may show the underlying DB message while in debug mode
-        _errorMessage = kDebugMode ? 'تعذر حفظ بيانات الموظف. (خطأ: ${e.toString()})' : 'تعذر حفظ بيانات الموظف.';
-      }
+      _errorMessage = 'تعذر حفظ بيانات الموظف.';
       _isSaving = false;
       notifyListeners();
       return false;
