@@ -59,7 +59,7 @@ class DatabaseHelper {
 
     // جدول المستخدمين
     batch.execute('''
-      CREATE TABLE $tableUsers (
+      CREATE TABLE IF NOT EXISTS $tableUsers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         username TEXT NOT NULL UNIQUE,
@@ -80,7 +80,7 @@ class DatabaseHelper {
 
     // جدول المدربين
     batch.execute('''
-      CREATE TABLE $tableCoaches (
+      CREATE TABLE IF NOT EXISTS $tableCoaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         phone TEXT,
@@ -94,7 +94,7 @@ class DatabaseHelper {
 
     // جدول الملاعب
     batch.execute('''
-      CREATE TABLE $tablePitches (
+      CREATE TABLE IF NOT EXISTS $tablePitches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         location TEXT,
@@ -108,7 +108,7 @@ class DatabaseHelper {
 
     // جدول الكرات
     batch.execute('''
-      CREATE TABLE $tableBalls (
+      CREATE TABLE IF NOT EXISTS $tableBalls (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         size TEXT,
@@ -119,9 +119,9 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول الحجوزات (محدّث)
+    // جدول الحجوزات
     batch.execute('''
-      CREATE TABLE $tableBookings (
+      CREATE TABLE IF NOT EXISTS $tableBookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         coach_id INTEGER,
@@ -150,7 +150,7 @@ class DatabaseHelper {
 
     // جدول حالة المزامنة
     batch.execute('''
-      CREATE TABLE $tableSyncStatus (
+      CREATE TABLE IF NOT EXISTS $tableSyncStatus (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         table_name TEXT NOT NULL,
         record_id INTEGER NOT NULL,
@@ -162,9 +162,7 @@ class DatabaseHelper {
       );
     ''');
 
-    await batch.commit();
-
-    // جدول طلبات التوريد (طلبات إيداع المبالغ للمدير)
+    // جدول طلبات التوريد
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableDepositRequests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,50 +179,77 @@ class DatabaseHelper {
         FOREIGN KEY (processed_by) REFERENCES $tableUsers (id) ON DELETE SET NULL
       );
     ''');
-    await batch.commit();
+
+    await batch.commit(noResult: true);
   }
 
-  Future<void> _onUpgrade(
-    Database db,
-    int oldVersion,
-    int newVersion,
-  ) async {
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     // تنفيذ ترحيل آمن عند ترقية النسخة.
     // مثال: إضافة عمود `wage_per_booking` إلى جدول `users` إذا لم يكن موجودًا.
     if (newVersion > oldVersion) {
       // تحقق مما إذا كان العمود موجودًا بالفعل
       try {
         final info = await db.rawQuery('PRAGMA table_info($tableUsers)');
-        final hasWage = info.any((col) => (col['name'] as String?) == 'wage_per_booking');
+        final hasWage = info.any(
+          (col) => (col['name'] as String?) == 'wage_per_booking',
+        );
         if (!hasWage) {
-          if (kDebugMode) print('Adding column wage_per_booking to $tableUsers');
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN wage_per_booking REAL');
+          if (kDebugMode) {
+            print('Adding column wage_per_booking to $tableUsers');
+          }
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN wage_per_booking REAL',
+          );
         }
 
         // These columns were added in later schema changes. Ensure they exist
         // for databases upgraded from older versions.
-        final hasCanManagePitches = info.any((col) => (col['name'] as String?) == 'can_manage_pitches');
+        final hasCanManagePitches = info.any(
+          (col) => (col['name'] as String?) == 'can_manage_pitches',
+        );
         if (!hasCanManagePitches) {
-          if (kDebugMode) print('Adding column can_manage_pitches to $tableUsers');
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_pitches INTEGER NOT NULL DEFAULT 0');
+          if (kDebugMode) {
+            print('Adding column can_manage_pitches to $tableUsers');
+          }
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_manage_pitches INTEGER NOT NULL DEFAULT 0',
+          );
         }
 
-        final hasCanManageCoaches = info.any((col) => (col['name'] as String?) == 'can_manage_coaches');
+        final hasCanManageCoaches = info.any(
+          (col) => (col['name'] as String?) == 'can_manage_coaches',
+        );
         if (!hasCanManageCoaches) {
-          if (kDebugMode) print('Adding column can_manage_coaches to $tableUsers');
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_coaches INTEGER NOT NULL DEFAULT 0');
+          if (kDebugMode) {
+            print('Adding column can_manage_coaches to $tableUsers');
+          }
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_manage_coaches INTEGER NOT NULL DEFAULT 0',
+          );
         }
 
-        final hasCanManageBookings = info.any((col) => (col['name'] as String?) == 'can_manage_bookings');
+        final hasCanManageBookings = info.any(
+          (col) => (col['name'] as String?) == 'can_manage_bookings',
+        );
         if (!hasCanManageBookings) {
-          if (kDebugMode) print('Adding column can_manage_bookings to $tableUsers');
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_bookings INTEGER NOT NULL DEFAULT 0');
+          if (kDebugMode) {
+            print('Adding column can_manage_bookings to $tableUsers');
+          }
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_manage_bookings INTEGER NOT NULL DEFAULT 0',
+          );
         }
 
-        final hasCanViewReports = info.any((col) => (col['name'] as String?) == 'can_view_reports');
+        final hasCanViewReports = info.any(
+          (col) => (col['name'] as String?) == 'can_view_reports',
+        );
         if (!hasCanViewReports) {
-          if (kDebugMode) print('Adding column can_view_reports to $tableUsers');
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_view_reports INTEGER NOT NULL DEFAULT 0');
+          if (kDebugMode) {
+            print('Adding column can_view_reports to $tableUsers');
+          }
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_view_reports INTEGER NOT NULL DEFAULT 0',
+          );
         }
       } catch (e) {
         // Do not fail the upgrade because of a secondary issue. If needed,
@@ -234,31 +259,47 @@ class DatabaseHelper {
 
       // Also ensure bookings has the required new columns (staff_wage, coach_wage, period)
       try {
-        final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
-        final hasStaffWage = bookingInfo.any((col) => (col['name'] as String?) == 'staff_wage');
+        final bookingInfo = await db.rawQuery(
+          'PRAGMA table_info($tableBookings)',
+        );
+        final hasStaffWage = bookingInfo.any(
+          (col) => (col['name'] as String?) == 'staff_wage',
+        );
         if (!hasStaffWage) {
           if (kDebugMode) print('Adding column staff_wage to $tableBookings');
-          await db.execute('ALTER TABLE $tableBookings ADD COLUMN staff_wage REAL');
+          await db.execute(
+            'ALTER TABLE $tableBookings ADD COLUMN staff_wage REAL',
+          );
         }
 
-        final hasCoachWage = bookingInfo.any((col) => (col['name'] as String?) == 'coach_wage');
+        final hasCoachWage = bookingInfo.any(
+          (col) => (col['name'] as String?) == 'coach_wage',
+        );
         if (!hasCoachWage) {
           if (kDebugMode) print('Adding column coach_wage to $tableBookings');
-          await db.execute('ALTER TABLE $tableBookings ADD COLUMN coach_wage REAL');
+          await db.execute(
+            'ALTER TABLE $tableBookings ADD COLUMN coach_wage REAL',
+          );
         }
 
-        final hasPeriod = bookingInfo.any((col) => (col['name'] as String?) == 'period');
+        final hasPeriod = bookingInfo.any(
+          (col) => (col['name'] as String?) == 'period',
+        );
         if (!hasPeriod) {
           if (kDebugMode) print('Adding column period to $tableBookings');
           await db.execute('ALTER TABLE $tableBookings ADD COLUMN period TEXT');
         }
       } catch (e) {
-        if (kDebugMode) print('Error while applying bookings table upgrades: $e');
+        if (kDebugMode) {
+          print('Error while applying bookings table upgrades: $e');
+        }
       }
-      
+
       // For older DBs, ensure any additional columns used by Booking model exist.
       try {
-        final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
+        final bookingInfo = await db.rawQuery(
+          'PRAGMA table_info($tableBookings)',
+        );
         final expectedColumns = <String, String>{
           'team_name': 'TEXT',
           'customer_phone': 'TEXT',
@@ -270,18 +311,26 @@ class DatabaseHelper {
           final hasCol = bookingInfo.any((c) => (c['name'] as String?) == name);
           if (!hasCol) {
             if (kDebugMode) print('Adding column $name to $tableBookings');
-            await db.execute('ALTER TABLE $tableBookings ADD COLUMN $name $colType');
+            await db.execute(
+              'ALTER TABLE $tableBookings ADD COLUMN $name $colType',
+            );
           }
         }
       } catch (e) {
-        if (kDebugMode) print('Error while applying bookings optional columns: $e');
+        if (kDebugMode) {
+          print('Error while applying bookings optional columns: $e');
+        }
       }
 
       // Ensure deposit requests table exists on databases upgraded from older versions
       try {
-        final depositInfo = await db.rawQuery('PRAGMA table_info($tableDepositRequests)');
+        final depositInfo = await db.rawQuery(
+          'PRAGMA table_info($tableDepositRequests)',
+        );
         if (depositInfo.isEmpty) {
-          if (kDebugMode) print('Creating table $tableDepositRequests on upgrade');
+          if (kDebugMode) {
+            print('Creating table $tableDepositRequests on upgrade');
+          }
           await db.execute('''
             CREATE TABLE IF NOT EXISTS $tableDepositRequests (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -300,7 +349,11 @@ class DatabaseHelper {
           ''');
         }
       } catch (e) {
-        if (kDebugMode) print('Error while creating $tableDepositRequests during upgrade: $e');
+        if (kDebugMode) {
+          print(
+            'Error while creating $tableDepositRequests during upgrade: $e',
+          );
+        }
       }
     }
   }
@@ -315,10 +368,7 @@ class DatabaseHelper {
 
   // CRUD عامة
 
-  Future<int> insert(
-    String table,
-    Map<String, dynamic> values,
-  ) async {
+  Future<int> insert(String table, Map<String, dynamic> values) async {
     final db = await database;
 
     values['is_dirty'] = values['is_dirty'] ?? 1;
@@ -349,7 +399,9 @@ class DatabaseHelper {
   }) async {
     final db = await database;
     if (kDebugMode) {
-      print('DB query -> table: $table, where: $where, args: $whereArgs, orderBy: $orderBy');
+      print(
+        'DB query -> table: $table, where: $where, args: $whereArgs, orderBy: $orderBy',
+      );
     }
     final rows = await db.query(
       table,
@@ -365,10 +417,7 @@ class DatabaseHelper {
     return rows;
   }
 
-  Future<Map<String, dynamic>?> getById(
-    String table,
-    int id,
-  ) async {
+  Future<Map<String, dynamic>?> getById(String table, int id) async {
     final db = await database;
     final result = await db.query(
       table,
@@ -395,7 +444,9 @@ class DatabaseHelper {
         values['updated_at'] ?? DateTime.now().toIso8601String();
 
     if (kDebugMode) {
-      print('DB update -> table: $table, values: $values, where: $where, whereArgs: $whereArgs');
+      print(
+        'DB update -> table: $table, values: $values, where: $where, whereArgs: $whereArgs',
+      );
     }
     final result = await db.update(
       table,
@@ -419,11 +470,7 @@ class DatabaseHelper {
     if (kDebugMode) {
       print('DB delete -> table: $table, where: $where, whereArgs: $whereArgs');
     }
-    final result = await db.delete(
-      table,
-      where: where,
-      whereArgs: whereArgs,
-    );
+    final result = await db.delete(table, where: where, whereArgs: whereArgs);
     if (kDebugMode) {
       print('DB delete <- result: $result');
     }
@@ -438,10 +485,7 @@ class DatabaseHelper {
     return db.rawQuery(sql, arguments);
   }
 
-  Future<void> rawExecute(
-    String sql, [
-    List<Object?>? arguments,
-  ]) async {
+  Future<void> rawExecute(String sql, [List<Object?>? arguments]) async {
     final db = await database;
     await db.execute(sql, arguments);
   }
@@ -476,7 +520,11 @@ class DatabaseHelper {
     };
 
     if (existingAdmin.isNotEmpty) {
-      if (kDebugMode) print('Updating existing admin user to seeded credentials: ${existingAdmin.first}');
+      if (kDebugMode) {
+        print(
+          'Updating existing admin user to seeded credentials: ${existingAdmin.first}',
+        );
+      }
       await db.update(
         tableUsers,
         adminValues,
@@ -486,9 +534,9 @@ class DatabaseHelper {
       );
     } else {
       final id = await db.insert(
-      tableUsers,
+        tableUsers,
         adminValues,
-      conflictAlgorithm: ConflictAlgorithm.replace,
+        conflictAlgorithm: ConflictAlgorithm.replace,
       );
       if (kDebugMode) print('Inserted admin user with id: $id');
     }

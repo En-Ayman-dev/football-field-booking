@@ -19,30 +19,98 @@ import 'features/settings/presentation/screens/settings_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Prevent google_fonts from attempting to fetch fonts over the network at runtime
+  // منع GoogleFonts من محاولة تحميل الخطوط من النت
   GoogleFonts.config.allowRuntimeFetching = false;
 
-  // Initialize dependency injection container
-  await di.init();
+  // شغّل التطبيق فوراً، وخلي التهيئة تتم داخل Flutter نفسه
+  runApp(const _BootstrapApp());
+}
 
-  // Initialize session manager
-  await SessionManager.instance.init();
+/// هذا الـ Widget مسؤول عن تهيئة التطبيق قبل ما يفتح الشاشات الحقيقية
+class _BootstrapApp extends StatefulWidget {
+  const _BootstrapApp();
 
-  // Ensure the admin user exists
-  await DatabaseHelper().seedAdminUser();
+  @override
+  State<_BootstrapApp> createState() => _BootstrapAppState();
+}
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => SettingsNotifier()..loadThemeMode()),
-        ChangeNotifierProvider<AuthProvider>(
-          create: (_) => AuthProvider()..loadCurrentUser(),
-        ),
-        ChangeNotifierProvider<DepositProvider>(create: (_) => DepositProvider()),
-      ],
-      child: const ArenaManagerApp(),
-    ),
-  );
+class _BootstrapAppState extends State<_BootstrapApp> {
+  late Future<void> _initFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFuture = _initApp();
+  }
+
+  Future<void> _initApp() async {
+    try {
+      // Initialize dependency injection container
+      await di.init();
+
+      // Initialize session manager
+      await SessionManager.instance.init();
+
+      // Ensure the admin user exists
+      await DatabaseHelper().seedAdminUser();
+    } catch (e, s) {
+      // في حال صار أي خطأ في الـ release ما يعلّق التطبيق
+      debugPrint('Error while initializing app: $e');
+      debugPrint('$s');
+      rethrow;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _initFuture,
+      builder: (context, snapshot) {
+        // شاشة تحميل أثناء التهيئة
+        if (snapshot.connectionState != ConnectionState.done) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          );
+        }
+
+        // لو صار خطأ في التهيئة نظهر شاشة واضحة بدل التعليق على شعار Flutter
+        if (snapshot.hasError) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: Scaffold(
+              body: Center(
+                child: Text(
+                  'حدث خطأ أثناء تشغيل التطبيق.\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+
+        // هنا كل شيء تمام، نكمّل التطبيق الحقيقي
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider(
+              create: (_) => SettingsNotifier()..loadThemeMode(),
+            ),
+            ChangeNotifierProvider<AuthProvider>(
+              create: (_) => AuthProvider()..loadCurrentUser(),
+            ),
+            ChangeNotifierProvider<DepositProvider>(
+              create: (_) => DepositProvider(),
+            ),
+          ],
+          child: const ArenaManagerApp(),
+        );
+      },
+    );
+  }
 }
 
 class ArenaManagerApp extends StatefulWidget {
@@ -55,13 +123,10 @@ class ArenaManagerApp extends StatefulWidget {
 class _ArenaManagerAppState extends State<ArenaManagerApp> {
   ThemeMode get _themeMode => Provider.of<SettingsNotifier>(context).themeMode;
 
-
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'ArenaManager',
-
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar'),
       supportedLocales: const [Locale('ar'), Locale('en')],

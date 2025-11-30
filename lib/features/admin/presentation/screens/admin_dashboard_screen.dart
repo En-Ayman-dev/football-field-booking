@@ -13,40 +13,31 @@ import '../../../settings/presentation/screens/settings_screen.dart';
 import '../../../deposits/presentation/screens/admin_deposit_requests_screen.dart';
 import '../../../deposits/presentation/screens/worker_deposits_screen.dart';
 
-
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
   void _openManagePitchesBalls(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const ManagePitchesBallsScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ManagePitchesBallsScreen()));
   }
 
   void _openManageCoaches(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const ManageCoachesScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ManageCoachesScreen()));
   }
 
   void _openManageStaff(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const ManageStaffScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ManageStaffScreen()));
   }
 
   void _openReports(BuildContext context) {
     // سيتم تنفيذ شاشة التقارير لاحقاً
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('شاشة التقارير سيتم تنفيذها لاحقاً.'),
-      ),
+      SnackBar(content: Text('شاشة التقارير سيتم تنفيذها لاحقاً.')),
     );
   }
 
@@ -73,16 +64,24 @@ class AdminDashboardScreen extends StatelessWidget {
               onPressed: () async {
                 try {
                   final dbHelper = DatabaseHelper();
-                  final usersCount = (await dbHelper.rawQuery('SELECT COUNT(*) as c FROM ${DatabaseHelper.tableUsers}'));
-                  final pitchesCount = (await dbHelper.rawQuery('SELECT COUNT(*) as c FROM ${DatabaseHelper.tablePitches}'));
-                  final bookingsCount = (await dbHelper.rawQuery('SELECT COUNT(*) as c FROM ${DatabaseHelper.tableBookings}'));
+                  final usersCount = (await dbHelper.rawQuery(
+                    'SELECT COUNT(*) as c FROM ${DatabaseHelper.tableUsers}',
+                  ));
+                  final pitchesCount = (await dbHelper.rawQuery(
+                    'SELECT COUNT(*) as c FROM ${DatabaseHelper.tablePitches}',
+                  ));
+                  final bookingsCount = (await dbHelper.rawQuery(
+                    'SELECT COUNT(*) as c FROM ${DatabaseHelper.tableBookings}',
+                  ));
                   final u = usersCount.first['c'];
                   final p = pitchesCount.first['c'];
                   final b = bookingsCount.first['c'];
                   final msg = 'users: $u, pitches: $p, bookings: $b';
                   if (kDebugMode) print(msg);
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(msg)));
                   }
                 } catch (e) {
                   if (kDebugMode) print('DB debug failed: $e');
@@ -99,16 +98,32 @@ class AdminDashboardScreen extends StatelessWidget {
                     title: const Text('تأكيد'),
                     content: const Text('هل تريد تسجيل الخروج؟'),
                     actions: [
-                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
-                      TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('لا'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: const Text('نعم'),
+                      ),
                     ],
                   ),
                 );
+
                 if (confirm ?? false) {
-                  final auth = Provider.of<AuthProvider>(context, listen: false);
+                  final auth = Provider.of<AuthProvider>(
+                    context,
+                    listen: false,
+                  );
                   await auth.logout();
+
+                  // 🔥 حل مضمون
+                  await Future.delayed(const Duration(milliseconds: 100));
+
                   if (context.mounted) {
-                    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                    Navigator.of(
+                      context,
+                    ).pushNamedAndRemoveUntil('/login', (route) => false);
                   }
                 }
               },
@@ -122,66 +137,82 @@ class AdminDashboardScreen extends StatelessWidget {
             crossAxisCount: 2,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-          children: [
-              if (canManageStaff) _DashboardCard(
-                icon: Icons.people_alt_outlined,
-                title: 'العمال / الموظفون',
-                subtitle: 'إدارة حسابات العاملين',
-                onTap: () => _openManageStaff(context),
-              ),
-              if (canManageCoaches) _DashboardCard(
-                icon: Icons.sports_soccer_outlined,
-                title: 'المدربون',
-                subtitle: 'إدارة بيانات المدربين',
-                onTap: () => _openManageCoaches(context),
-              ),
-              if (canManagePitches) _DashboardCard(
-                icon: Icons.stadium_outlined,
-                title: 'الملاعب والكرات',
-                subtitle: 'إدارة الملاعب والكرات',
-                onTap: () => _openManagePitchesBalls(context),
-              ),
-              if (canViewReports) _DashboardCard(
-                icon: Icons.insert_chart_outlined,
-                title: 'التقارير',
-                subtitle: 'عرض تقارير الحجوزات',
-                onTap: () => _openReports(context),
-              ),
-              if (canManageBookings) _DashboardCard(
-                icon: Icons.list_alt,
-                title: 'قائمة الحجوزات',
-                subtitle: 'عرض كافة الحجوزات',
-                onTap: () => Navigator.of(context).pushNamed('/bookings'),
-              ),
-              if (isAdmin) _DashboardCard(
-                icon: Icons.settings,
-                title: 'الإعدادات',
-                subtitle: 'إعدادات التطبيق',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            children: [
+              if (canManageStaff)
+                _DashboardCard(
+                  icon: Icons.people_alt_outlined,
+                  title: 'العمال / الموظفون',
+                  subtitle: 'إدارة حسابات العاملين',
+                  onTap: () => _openManageStaff(context),
                 ),
-              ),
-              if (canManageBookings) _DashboardCard(
-                icon: Icons.add_box_outlined,
-                title: 'إنشاء حجز',
-                subtitle: 'إضافة حجز جديد',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AddBookingScreen()),
+              if (canManageCoaches)
+                _DashboardCard(
+                  icon: Icons.sports_soccer_outlined,
+                  title: 'المدربون',
+                  subtitle: 'إدارة بيانات المدربين',
+                  onTap: () => _openManageCoaches(context),
                 ),
-              ),
+              if (canManagePitches)
+                _DashboardCard(
+                  icon: Icons.stadium_outlined,
+                  title: 'الملاعب والكرات',
+                  subtitle: 'إدارة الملاعب والكرات',
+                  onTap: () => _openManagePitchesBalls(context),
+                ),
+              if (canViewReports)
+                _DashboardCard(
+                  icon: Icons.insert_chart_outlined,
+                  title: 'التقارير',
+                  subtitle: 'عرض تقارير الحجوزات',
+                  onTap: () => _openReports(context),
+                ),
+              if (canManageBookings)
+                _DashboardCard(
+                  icon: Icons.list_alt,
+                  title: 'قائمة الحجوزات',
+                  subtitle: 'عرض كافة الحجوزات',
+                  onTap: () => Navigator.of(context).pushNamed('/bookings'),
+                ),
+              if (isAdmin)
+                _DashboardCard(
+                  icon: Icons.settings,
+                  title: 'الإعدادات',
+                  subtitle: 'إعدادات التطبيق',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
+                ),
+              if (canManageBookings)
+                _DashboardCard(
+                  icon: Icons.add_box_outlined,
+                  title: 'إنشاء حجز',
+                  subtitle: 'إضافة حجز جديد',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AddBookingScreen()),
+                  ),
+                ),
               // طلبات التوريد - متاحة للمدير والموظفين
-              if (isAdmin || isStaff) _DashboardCard(
-                icon: Icons.monetization_on_outlined,
-                title: 'طلبات التوريد',
-                subtitle: 'عرض وإدارة طلبات التوريد',
-                onTap: () {
-                  if (isAdmin) {
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminDepositRequestsScreen()));
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WorkerDepositsScreen()));
-                  }
-                },
-              ),
+              if (isAdmin || isStaff)
+                _DashboardCard(
+                  icon: Icons.monetization_on_outlined,
+                  title: 'طلبات التوريد',
+                  subtitle: 'عرض وإدارة طلبات التوريد',
+                  onTap: () {
+                    if (isAdmin) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const AdminDepositRequestsScreen(),
+                        ),
+                      );
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const WorkerDepositsScreen(),
+                        ),
+                      );
+                    }
+                  },
+                ),
             ],
           ),
         ),
@@ -236,10 +267,7 @@ class _DashboardCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 40,
-              ),
+              Icon(icon, size: 40),
               const SizedBox(height: 12),
               Text(
                 title,

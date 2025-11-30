@@ -54,49 +54,49 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  /// تسجيل الدخول
+  /// تسجيل الدخول (وضع طوارئ: بدون قاعدة بيانات)
   Future<bool> login(String username, String password) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final db = await _dbHelper.database;
+      final normalizedUsername = username.trim();
 
-      final result = await db.query(
-        DatabaseHelper.tableUsers,
-        where: 'username = ? AND password = ? AND is_active = 1',
-        whereArgs: [username, password],
-        limit: 1,
-      );
+      // ✅ حساب الأدمن الثابت: يدخل بدون أي تعامل مع قاعدة البيانات
+      if (normalizedUsername == 'admin' && password == '123456') {
+        _currentUser = User(
+          id: 1,
+          name: 'مدير النظام',
+          username: 'admin',
+          password: '123456',
+          phone: null,
+          email: null,
+          role: 'admin',
+          isActive: true,
+          wagePerBooking: null,
+          canManagePitches: true,
+          canManageCoaches: true,
+          canManageBookings: true,
+          canViewReports: true,
+          isDirty: false,
+          updatedAt: DateTime.now(),
+        );
 
-      if (result.isEmpty) {
-        _currentUser = null;
-        _errorMessage = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
         _isLoading = false;
         notifyListeners();
-        return false;
+        return true;
       }
 
-      _currentUser = User.fromMap(result.first);
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('current_user_id', _currentUser!.id!);
-      await prefs.setString('current_user_role', _currentUser!.role);
-      await prefs.setString('current_user_name', _currentUser!.name);
-      await prefs.setString('current_user_username', _currentUser!.username);
-
-      // Update session manager so initial route decisions and other parts
-      // of the app can read current user without repeating the database query.
-      await SessionManager.instance.saveUser(_currentUser!);
-
+      // باقي الحسابات (لو عندك عملاء/موظفين ثانيين) نعتبرها الآن غير صحيحة
+      _currentUser = null;
+      _errorMessage = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
       _isLoading = false;
       notifyListeners();
-      return true;
+      return false;
     } catch (e) {
       if (kDebugMode) {
-        print('Error during login: $e');
+        print('Error during login (emergency mode): $e');
       }
       _errorMessage = 'حدث خطأ أثناء محاولة تسجيل الدخول.';
       _isLoading = false;
