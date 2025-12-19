@@ -1,10 +1,10 @@
 // ignore_for_file: deprecated_member_use, depend_on_referenced_packages
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide SizedBox;
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+
 import '../../../../providers/auth_provider.dart';
-import '../../../../core/database/database_helper.dart';
+import '../../../../core/utils/responsive_helper.dart'; // استيراد محرك التجاوب
 import '../../../pitches_balls/presentation/screens/manage_coaches_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_pitches_balls_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_staff_screen.dart';
@@ -16,29 +16,21 @@ import '../../../deposits/presentation/screens/worker_deposits_screen.dart';
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
+  // --- دوال التنقل (بدون تغيير) ---
   void _openManagePitchesBalls(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ManagePitchesBallsScreen()));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManagePitchesBallsScreen()));
   }
 
   void _openManageCoaches(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ManageCoachesScreen()));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageCoachesScreen()));
   }
 
   void _openManageStaff(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ManageStaffScreen()));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageStaffScreen()));
   }
 
   void _openReports(BuildContext context) {
-    // سيتم تنفيذ شاشة التقارير لاحقاً
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('شاشة التقارير سيتم تنفيذها لاحقاً.')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('شاشة التقارير ستتوفر قريباً.')));
   }
 
   Future<void> _performLogout(BuildContext context) async {
@@ -48,23 +40,14 @@ class AdminDashboardScreen extends StatelessWidget {
         title: const Text('تأكيد'),
         content: const Text('هل تريد تسجيل الخروج؟'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('لا'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('نعم'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
         ],
       ),
     );
 
     if (confirm == true && context.mounted) {
-      // 1. التوجيه فوراً لتجنب أي مشاكل تتعلق بحالة المستخدم أو السياق
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-      
-      // 2. تنفيذ تسجيل الخروج في الخلفية بعد مغادرة الشاشة
       final auth = Provider.of<AuthProvider>(context, listen: false);
       await auth.logout();
     }
@@ -76,148 +59,112 @@ class AdminDashboardScreen extends StatelessWidget {
     final user = auth.currentUser;
     final isAdmin = auth.isAdmin;
     final isStaff = auth.isStaff;
+    
+    // صلاحيات الوصول
     final canManagePitches = isAdmin || (user?.canManagePitches ?? false);
     final canManageCoaches = isAdmin || (user?.canManageCoaches ?? false);
-    final canManageStaff = isAdmin; // restrict staff management to admin only
+    final canManageStaff = isAdmin;
     final canViewReports = isAdmin || (user?.canViewReports ?? false);
     final canManageBookings = isAdmin || (user?.canManageBookings ?? false);
-    
+
+    // --- حساب عدد الأعمدة بناءً على عرض الشاشة ---
+    int crossAxisCount = 2; // الهواتف العادية
+    if (ResponsiveHelper.screenWidth > 600) crossAxisCount = 3; // الأجهزة اللوحية الصغيرة
+    if (ResponsiveHelper.screenWidth > 900) crossAxisCount = 4; // الأجهزة اللوحية الكبيرة / سطح المكتب
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('لوحة تحكم المدير'),
+          title: Text('لوحة التحكم', style: TextStyle(fontSize: 18.sp)),
           centerTitle: true,
           actions: [
             IconButton(
-              tooltip: 'Debug DB',
-              onPressed: () async {
-                try {
-                  final dbHelper = DatabaseHelper();
-                  final usersCount = (await dbHelper.rawQuery(
-                    'SELECT COUNT(*) as c FROM ${DatabaseHelper.tableUsers}',
-                  ));
-                  final pitchesCount = (await dbHelper.rawQuery(
-                    'SELECT COUNT(*) as c FROM ${DatabaseHelper.tablePitches}',
-                  ));
-                  final bookingsCount = (await dbHelper.rawQuery(
-                    'SELECT COUNT(*) as c FROM ${DatabaseHelper.tableBookings}',
-                  ));
-                  final u = usersCount.first['c'];
-                  final p = pitchesCount.first['c'];
-                  final b = bookingsCount.first['c'];
-                  final msg = 'users: $u, pitches: $p, bookings: $b';
-                  if (kDebugMode) print(msg);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(msg)));
-                  }
-                } catch (e) {
-                  if (kDebugMode) print('DB debug failed: $e');
-                }
-              },
-              icon: const Icon(Icons.bug_report),
-            ),
-            IconButton(
               tooltip: 'تسجيل خروج',
               onPressed: () => _performLogout(context),
-              icon: const Icon(Icons.logout),
+              icon: Icon(Icons.logout, size: 22.sp),
             ),
           ],
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            children: [
-              if (canManageStaff)
-                _DashboardCard(
-                  icon: Icons.people_alt_outlined,
-                  title: 'العمال / الموظفون',
-                  subtitle: 'إدارة حسابات العاملين',
-                  onTap: () => _openManageStaff(context),
-                ),
-              if (canManageCoaches)
-                _DashboardCard(
-                  icon: Icons.sports_soccer_outlined,
-                  title: 'المدربون',
-                  subtitle: 'إدارة بيانات المدربين',
-                  onTap: () => _openManageCoaches(context),
-                ),
-              if (canManagePitches)
-                _DashboardCard(
-                  icon: Icons.stadium_outlined,
-                  title: 'الملاعب والكرات',
-                  subtitle: 'إدارة الملاعب والكرات',
-                  onTap: () => _openManagePitchesBalls(context),
-                ),
-              if (canViewReports)
-                _DashboardCard(
-                  icon: Icons.insert_chart_outlined,
-                  title: 'التقارير',
-                  subtitle: 'عرض تقارير الحجوزات',
-                  onTap: () => _openReports(context),
-                ),
-              if (canManageBookings)
-                _DashboardCard(
-                  icon: Icons.list_alt,
-                  title: 'قائمة الحجوزات',
-                  subtitle: 'عرض كافة الحجوزات',
-                  onTap: () => Navigator.of(context).pushNamed('/bookings'),
-                ),
-              if (isAdmin)
-                _DashboardCard(
-                  icon: Icons.settings,
-                  title: 'الإعدادات',
-                  subtitle: 'إعدادات التطبيق',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        body: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(4.w), // بادينج متجاوب
+            child: GridView(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 4.w,
+                mainAxisSpacing: 4.w,
+                childAspectRatio: 0.85, // جعل الكروت متناسقة الطول والعرض
+              ),
+              children: [
+                if (canManageStaff)
+                  _DashboardCard(
+                    icon: Icons.people_alt_outlined,
+                    title: 'الموظفون',
+                    subtitle: 'إدارة العاملين',
+                    onTap: () => _openManageStaff(context),
                   ),
-                ),
-              if (canManageBookings)
-                _DashboardCard(
-                  icon: Icons.add_box_outlined,
-                  title: 'إنشاء حجز',
-                  subtitle: 'إضافة حجز جديد',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const AddBookingScreen()),
+                if (canManageCoaches)
+                  _DashboardCard(
+                    icon: Icons.sports_soccer_outlined,
+                    title: 'المدربون',
+                    subtitle: 'إدارة المدربين',
+                    onTap: () => _openManageCoaches(context),
                   ),
-                ),
-              // طلبات التوريد - متاحة للمدير والموظفين
-              if (isAdmin || isStaff)
-                _DashboardCard(
-                  icon: Icons.monetization_on_outlined,
-                  title: 'طلبات التوريد',
-                  subtitle: 'عرض وإدارة طلبات التوريد',
-                  onTap: () {
-                    if (isAdmin) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const AdminDepositRequestsScreen(),
-                        ),
-                      );
-                    } else {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const WorkerDepositsScreen(),
-                        ),
-                      );
-                    }
-                  },
-                ),
-            ],
+                if (canManagePitches)
+                  _DashboardCard(
+                    icon: Icons.stadium_outlined,
+                    title: 'الملاعب والكرات',
+                    subtitle: 'إدارة المنشآت',
+                    onTap: () => _openManagePitchesBalls(context),
+                  ),
+                if (canViewReports)
+                  _DashboardCard(
+                    icon: Icons.insert_chart_outlined,
+                    title: 'التقارير',
+                    subtitle: 'إحصائيات العمل',
+                    onTap: () => _openReports(context),
+                  ),
+                if (canManageBookings)
+                  _DashboardCard(
+                    icon: Icons.list_alt,
+                    title: 'قائمة الحجوزات',
+                    subtitle: 'كل الحجوزات',
+                    onTap: () => Navigator.of(context).pushNamed('/bookings'),
+                  ),
+                if (isAdmin)
+                  _DashboardCard(
+                    icon: Icons.settings,
+                    title: 'الإعدادات',
+                    subtitle: 'ضبط النظام',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                  ),
+                if (canManageBookings)
+                  _DashboardCard(
+                    icon: Icons.add_box_outlined,
+                    title: 'حجز جديد',
+                    subtitle: 'إضافة فورية',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddBookingScreen())),
+                  ),
+                if (isAdmin || isStaff)
+                  _DashboardCard(
+                    icon: Icons.monetization_on_outlined,
+                    title: 'طلبات التوريد',
+                    subtitle: 'إدارة المالية',
+                    onTap: () {
+                      final screen = isAdmin ? const AdminDepositRequestsScreen() : const WorkerDepositsScreen();
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
         floatingActionButton: canManageBookings
             ? FloatingActionButton.extended(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AddBookingScreen()),
-                ),
-                label: const Text('حجز جديد'),
-                icon: const Icon(Icons.add_box_outlined),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddBookingScreen())),
+                label: Text('حجز جديد', style: TextStyle(fontSize: 14.sp)),
+                icon: Icon(Icons.add_box_outlined, size: 20.sp),
               )
             : null,
       ),
@@ -244,38 +191,41 @@ class _DashboardCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Ink(
+      borderRadius: BorderRadius.circular(16.sp),
+      child: Container(
         decoration: BoxDecoration(
           color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.sp),
           boxShadow: [
             BoxShadow(
-              blurRadius: 4,
-              spreadRadius: 1,
+              blurRadius: 10.sp,
+              spreadRadius: 1.sp,
               color: Colors.black.withOpacity(0.05),
+              offset: Offset(0, 4.sp),
             ),
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(3.w),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 40),
-              const SizedBox(height: 12),
+              Icon(icon, size: 35.sp, color: theme.colorScheme.primary),
+              SizedBox(height: 1.5.h),
               Text(
                 title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 0.5.h),
               Text(
                 subtitle,
-                style: theme.textTheme.bodySmall,
+                style: TextStyle(fontSize: 10.sp, color: theme.textTheme.bodySmall?.color),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

@@ -10,6 +10,7 @@ import 'core/database/database_helper.dart';
 import 'core/session/session_manager.dart';
 import 'core/settings/settings_notifier.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/responsive_helper.dart'; // استيراد الهيلبر الجديد
 import 'providers/auth_provider.dart';
 import 'features/deposits/presentation/providers/deposit_provider.dart';
 import 'features/dashboard/presentation/pages/dashboard_screen.dart' as dashboard;
@@ -19,14 +20,11 @@ import 'features/settings/presentation/screens/settings_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // منع GoogleFonts من محاولة تحميل الخطوط من النت
   GoogleFonts.config.allowRuntimeFetching = false;
 
-  // شغّل التطبيق فوراً، وخلي التهيئة تتم داخل Flutter نفسه
   runApp(const _BootstrapApp());
 }
 
-/// هذا الـ Widget مسؤول عن تهيئة التطبيق قبل ما يفتح الشاشات الحقيقية
 class _BootstrapApp extends StatefulWidget {
   const _BootstrapApp();
 
@@ -45,16 +43,10 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
   Future<void> _initApp() async {
     try {
-      // Initialize dependency injection container
       await di.init();
-
-      // Initialize session manager
       await SessionManager.instance.init();
-
-      // Ensure the admin user exists
       await DatabaseHelper().seedAdminUser();
     } catch (e, s) {
-      // في حال صار أي خطأ في الـ release ما يعلّق التطبيق
       debugPrint('Error while initializing app: $e');
       debugPrint('$s');
       rethrow;
@@ -66,19 +58,15 @@ class _BootstrapAppState extends State<_BootstrapApp> {
     return FutureBuilder<void>(
       future: _initFuture,
       builder: (context, snapshot) {
-        // شاشة تحميل أثناء التهيئة
         if (snapshot.connectionState != ConnectionState.done) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             home: const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
+              body: Center(child: CircularProgressIndicator()),
             ),
           );
         }
 
-        // لو صار خطأ في التهيئة نظهر شاشة واضحة بدل التعليق على شعار Flutter
         if (snapshot.hasError) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
@@ -93,7 +81,6 @@ class _BootstrapAppState extends State<_BootstrapApp> {
           );
         }
 
-        // هنا كل شيء تمام، نكمّل التطبيق الحقيقي
         return MultiProvider(
           providers: [
             ChangeNotifierProvider(
@@ -138,6 +125,12 @@ class _ArenaManagerAppState extends State<ArenaManagerApp> {
       themeMode: _themeMode,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
+      // --- التعديل هنا: تهيئة محرك التجاوب ليعمل في كل الشاشات ---
+      builder: (context, child) {
+        ResponsiveHelper().init(context);
+        return child!;
+      },
+      // -------------------------------------------------------
       initialRoute: '/login',
       routes: {
         '/login': (context) => const auth.LoginScreen(),

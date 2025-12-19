@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
 
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/utils/responsive_helper.dart'; // استيراد محرك التجاوب
 import '../../../../data/models/ball.dart';
 import '../../../../data/models/booking.dart';
 import '../../../../data/models/coach.dart';
@@ -51,7 +52,6 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   void initState() {
     super.initState();
     if (widget.existingBooking != null) {
-      // سنقوم بتعبئة التفاصيل بعد تحميل البيانات (pitches/coaches/balls)
       _durationHours =
           widget.existingBooking!.endTime.difference(widget.existingBooking!.startTime).inMinutes / 60.0;
       _durationController.text =
@@ -99,7 +99,6 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       minute: booking.startTime.minute,
     );
 
-    // اختيار الملعب / الكرة / المدرب من القوائم المحمّلة
     _selectedPitch = provider.pitches
         .where((p) => p.id == booking.pitchId)
         .cast<Pitch?>()
@@ -223,7 +222,6 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     int? insertedId;
 
     if (widget.existingBooking == null) {
-      // إضافة حجز جديد
       insertedId = await provider.addBooking(
         createdByUser: currentUser,
         pitch: _selectedPitch!,
@@ -239,7 +237,6 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       );
       success = insertedId != null;
     } else {
-      // تعديل حجز قائم
       success = await provider.updateBooking(
         existingBooking: widget.existingBooking!,
         updatedByUser: currentUser,
@@ -269,7 +266,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
           ),
         ),
       );
-      Navigator.of(context).pop(true); // نعيد true لنعلم القوائم بضرورة التحديث
+      Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -291,6 +288,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
               widget.existingBooking == null
                   ? 'إنشاء حجز جديد'
                   : 'تعديل الحجز',
+              style: TextStyle(fontSize: 18.sp), // متجاوب
             ),
           ),
           body: Consumer<BookingProvider>(
@@ -304,29 +302,29 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
               if (provider.errorMessage != null &&
                   provider.pitches.isEmpty) {
                 return Center(
-                  child: Text(provider.errorMessage!),
+                  child: Text(provider.errorMessage!, style: TextStyle(fontSize: 14.sp)),
                 );
               }
 
-              // تعبئة القيم من الحجز القديم بعد تحميل الموارد
               _initializeFromExistingIfNeeded(provider);
 
               return Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(4.w), // متجاوب
                 child: Form(
                   key: _formKey,
                   child: ListView(
                     children: [
                       // اختيار الملعب
                       DropdownButtonFormField<Pitch>(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'الملعب',
+                          labelStyle: TextStyle(fontSize: 13.sp),
                         ),
                         items: provider.pitches
                             .map(
                               (p) => DropdownMenuItem<Pitch>(
                                 value: p,
-                                child: Text(p.name),
+                                child: Text(p.name, style: TextStyle(fontSize: 13.sp)),
                               ),
                             )
                             .toList(),
@@ -344,22 +342,23 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 1.5.h), // متجاوب
 
                       // اختيار الكرة
                       DropdownButtonFormField<Ball>(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'الكرة (اختياري)',
+                          labelStyle: TextStyle(fontSize: 13.sp),
                         ),
                         items: [
-                          const DropdownMenuItem<Ball>(
+                          DropdownMenuItem<Ball>(
                             value: null,
-                            child: Text('بدون كرة'),
+                            child: Text('بدون كرة', style: TextStyle(fontSize: 13.sp)),
                           ),
                           ...provider.balls.map(
                             (b) => DropdownMenuItem<Ball>(
                               value: b,
-                              child: Text('${b.name} - الكمية: ${b.quantity}'),
+                              child: Text('${b.name} - الكمية: ${b.quantity}', style: TextStyle(fontSize: 13.sp)),
                             ),
                           ),
                         ],
@@ -370,17 +369,18 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                           });
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 1.5.h), // متجاوب
 
                       // اختيار المدرب
                       DropdownButtonFormField<Coach>(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'المدرب (اختياري)',
+                          labelStyle: TextStyle(fontSize: 13.sp),
                         ),
                         items: [
-                          const DropdownMenuItem<Coach>(
+                          DropdownMenuItem<Coach>(
                             value: null,
-                            child: Text('بدون مدرب'),
+                            child: Text('بدون مدرب', style: TextStyle(fontSize: 13.sp)),
                           ),
                           ...provider.coaches.map(
                             (c) => DropdownMenuItem<Coach>(
@@ -389,6 +389,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                                 c.pricePerHour != null
                                     ? '${c.name} (أجر الساعة: ${c.pricePerHour})'
                                     : c.name,
+                                style: TextStyle(fontSize: 13.sp),
                               ),
                             ),
                           ),
@@ -401,40 +402,45 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                           _recalculatePrices();
                         },
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 2.h), // متجاوب
 
                       // اسم الفريق
                       TextFormField(
                         controller: _teamNameController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'اسم الفريق',
+                          labelStyle: TextStyle(fontSize: 13.sp),
                         ),
+                        style: TextStyle(fontSize: 14.sp),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 1.5.h), // متجاوب
 
                       // الهاتف
                       TextFormField(
                         controller: _phoneController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'رقم الهاتف',
+                          labelStyle: TextStyle(fontSize: 13.sp),
                         ),
+                        style: TextStyle(fontSize: 14.sp),
                         keyboardType: TextInputType.phone,
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 1.5.h), // متجاوب
 
                       // الفترة
                       DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'الفترة',
+                          labelStyle: TextStyle(fontSize: 13.sp),
                         ),
-                        items: const [
+                        items: [
                           DropdownMenuItem(
                             value: 'morning',
-                            child: Text('صباحي'),
+                            child: Text('صباحي', style: TextStyle(fontSize: 13.sp)),
                           ),
                           DropdownMenuItem(
                             value: 'evening',
-                            child: Text('مسائي'),
+                            child: Text('مسائي', style: TextStyle(fontSize: 13.sp)),
                           ),
                         ],
                         initialValue: _period,
@@ -445,7 +451,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                           _recalculatePrices();
                         },
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 2.h), // متجاوب
 
                       // وقت البدء والمدة
                       Row(
@@ -454,26 +460,30 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                             child: InkWell(
                               onTap: _pickStartTime,
                               child: InputDecorator(
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'وقت البدء',
-                                  border: OutlineInputBorder(),
+                                  labelStyle: TextStyle(fontSize: 12.sp),
+                                  border: const OutlineInputBorder(),
                                 ),
                                 child: Text(
                                   _startTime == null
                                       ? 'اضغط للاختيار'
                                       : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
+                                  style: TextStyle(fontSize: 13.sp),
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          SizedBox(width: 3.w), // متجاوب
                           Expanded(
                             child: TextFormField(
                               controller: _durationController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'المدة (بالساعات)',
-                                border: OutlineInputBorder(),
+                                labelStyle: TextStyle(fontSize: 12.sp),
+                                border: const OutlineInputBorder(),
                               ),
+                              style: TextStyle(fontSize: 13.sp),
                               keyboardType:
                                   const TextInputType.numberWithOptions(
                                 decimal: true,
@@ -505,21 +515,23 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 2.h), // متجاوب
 
                       // ملاحظات (اختياري)
                       TextFormField(
                         controller: _notesController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'ملاحظات (اختياري)',
+                          labelStyle: TextStyle(fontSize: 13.sp),
                         ),
+                        style: TextStyle(fontSize: 13.sp),
                         maxLines: 2,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 2.h), // متجاوب
 
                       // السعر المحسوب
                       _buildPricePreview(provider),
-                      const SizedBox(height: 24),
+                      SizedBox(height: 3.h), // متجاوب
 
                       if (widget.existingBooking == null)
                         Row(
@@ -528,15 +540,15 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                               child: ElevatedButton(
                                 onPressed: () =>
                                     _submit(isPaid: false),
-                                child: const Text('حفظ كمعلّق'),
+                                child: Text('حفظ كمعلّق', style: TextStyle(fontSize: 13.sp)),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 3.w), // متجاوب
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () =>
                                     _submit(isPaid: true),
-                                child: const Text('حفظ ودفع'),
+                                child: Text('حفظ ودفع', style: TextStyle(fontSize: 13.sp)),
                               ),
                             ),
                           ],
@@ -549,7 +561,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                               isPaid: widget.existingBooking!.status ==
                                   'paid',
                             ),
-                            child: const Text('تحديث الحجز'),
+                            child: Text('تحديث الحجز', style: TextStyle(fontSize: 13.sp)),
                           ),
                         ),
                     ],
@@ -575,31 +587,34 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
 
     return Card(
       margin: EdgeInsets.zero,
+      elevation: 2, // الحفاظ على الظل
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: EdgeInsets.all(3.w), // متجاوب
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'مُلخص الحجز:',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 1.h),
             if (_startTime != null)
               Text(
                 'البداية: ${timeFormat.format(DateTime(0, 1, 1, _startTime!.hour, _startTime!.minute))}',
+                style: TextStyle(fontSize: 12.sp),
               ),
-            Text('المدة: $_durationHours ساعة'),
-            const SizedBox(height: 8),
-            Text('الإجمالي (رقماً): ${price.toStringAsFixed(2)} ريال'),
+            Text('المدة: $_durationHours ساعة', style: TextStyle(fontSize: 12.sp)),
+            SizedBox(height: 1.h),
+            Text('الإجمالي (رقماً): ${price.toStringAsFixed(2)} ريال', style: TextStyle(fontSize: 13.sp)),
             if (priceWords != null) ...[
-              const SizedBox(height: 4),
-              Text('الإجمالي (كتابة): $priceWords'),
+              SizedBox(height: 0.5.h),
+              Text('الإجمالي (كتابة): $priceWords', style: TextStyle(fontSize: 11.sp, color: Colors.grey[700])),
             ],
             if (coachWage != null) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: 1.h),
               Text(
                 'أجر المدرب التقريبي: ${coachWage.toStringAsFixed(2)} ريال',
+                style: TextStyle(fontSize: 12.sp, color: Colors.blue[800]),
               ),
             ],
           ],

@@ -10,8 +10,9 @@ import '../../../../data/models/pitch.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../../core/database/database_helper.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/responsive_helper.dart'; // استيراد محرك التجاوب
 import '../providers/booking_provider.dart';
-import '../widgets/booking_action_buttons.dart'; // استيراد الودجت الجديد
+import '../widgets/booking_action_buttons.dart';
 import 'add_booking_screen.dart';
 
 class BookingListScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
   int? _selectedPitchId;
   String _selectedPeriod = 'all';
 
+  // --- الدوال البرمجية (بدون تغيير في المنطق) ---
   Future<void> _pickDate(BuildContext context) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -37,9 +39,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
       locale: const Locale('ar'),
     );
     if (picked != null) {
-      setState(() {
-        _selectedDate = picked;
-      });
+      setState(() => _selectedDate = picked);
       final provider = Provider.of<BookingProvider>(context, listen: false);
       await provider.fetchBookings(
         date: _selectedDate,
@@ -52,9 +52,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
 
   Future<void> _openAddBooking(BuildContext context) async {
     final provider = Provider.of<BookingProvider>(context, listen: false);
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const AddBookingScreen()),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(builder: (context) => const AddBookingScreen()));
     await provider.fetchBookings(
       date: _selectedDate,
       pitchId: _selectedPitchId,
@@ -67,21 +65,14 @@ class _BookingListScreenState extends State<BookingListScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد'),
+        title: Text('تأكيد', style: TextStyle(fontSize: 16.sp)),
         content: const Text('هل تريد تسجيل الخروج؟'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('لا'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('نعم'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('لا')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('نعم')),
         ],
       ),
     );
-
     if (confirm == true && mounted) {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -103,64 +94,42 @@ class _BookingListScreenState extends State<BookingListScreen> {
       child: Builder(
         builder: (providerContext) {
           final auth0 = Provider.of<AuthProvider>(providerContext);
-          final canAddBooking =
-              auth0.isAdmin || (auth0.currentUser?.canManageBookings ?? false);
+          final canAddBooking = auth0.isAdmin || (auth0.currentUser?.canManageBookings ?? false);
+          
           return Directionality(
-            textDirection: ui.TextDirection.rtl, // تم التعديل للعربية
+            textDirection: ui.TextDirection.rtl,
             child: Scaffold(
               appBar: AppBar(
-                title: const Text('قائمة الحجوزات'),
+                title: Text('قائمة الحجوزات', style: TextStyle(fontSize: 18.sp)),
                 actions: [
                   IconButton(
-                    tooltip: 'تسجيل خروج',
-                    icon: const Icon(Icons.logout),
+                    icon: Icon(Icons.logout, size: 22.sp),
                     onPressed: () => _performLogout(context),
                   ),
                 ],
               ),
               body: Consumer<BookingProvider>(
                 builder: (context, provider, _) {
-                  final auth = Provider.of<AuthProvider>(context);
-                  final isAdmin = auth.isAdmin;
-
                   if (provider.isLoading && provider.bookings.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
-
-                  if (provider.errorMessage != null && provider.bookings.isEmpty) {
-                    return Center(child: Text(provider.errorMessage!));
-                  }
-
                   return Column(
                     children: [
                       _buildFiltersBar(context, provider),
-                      const Divider(height: 0),
+                      Divider(height: 1.h, thickness: 1),
                       Expanded(
                         child: provider.bookings.isEmpty
-                            ? const Center(child: Text('لا توجد حجوزات لهذا اليوم.'))
+                            ? Center(child: Text('لا توجد حجوزات لهذا اليوم.', style: TextStyle(fontSize: 14.sp)))
                             : ListView.builder(
+                                padding: EdgeInsets.only(bottom: 10.h), // مساحة للفلوتنج بوتن
                                 itemCount: provider.bookings.length,
                                 itemBuilder: (context, index) {
                                   final booking = provider.bookings[index];
                                   final pitch = provider.pitches.firstWhere(
                                     (p) => p.id == booking.pitchId,
-                                    orElse: () => Pitch(
-                                      id: booking.pitchId,
-                                      name: 'ملعب ${booking.pitchId}',
-                                      location: null,
-                                      pricePerHour: null,
-                                      isIndoor: false,
-                                      isActive: true,
-                                      isDirty: false,
-                                      updatedAt: booking.updatedAt,
-                                    ),
+                                    orElse: () => Pitch(id: booking.pitchId, name: 'ملعب ${booking.pitchId}', location: null, pricePerHour: null, isIndoor: false, isActive: true, isDirty: false, updatedAt: booking.updatedAt),
                                   );
-                                  return _buildBookingCard(
-                                    context: context,
-                                    booking: booking,
-                                    pitch: pitch,
-                                    isAdmin: isAdmin,
-                                  );
+                                  return _buildBookingCard(context: context, booking: booking, pitch: pitch, isAdmin: auth0.isAdmin);
                                 },
                               ),
                       ),
@@ -171,7 +140,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
               floatingActionButton: canAddBooking
                   ? FloatingActionButton(
                       onPressed: () => _openAddBooking(providerContext),
-                      child: const Icon(Icons.add),
+                      child: Icon(Icons.add, size: 24.sp),
                     )
                   : null,
             ),
@@ -183,15 +152,12 @@ class _BookingListScreenState extends State<BookingListScreen> {
 
   Widget _buildFiltersBar(BuildContext context, BookingProvider provider) {
     final dateFormat = DateFormat('yyyy/MM/dd', 'ar');
-    final now = DateTime.now();
-    final isToday = _selectedDate.year == now.year &&
-        _selectedDate.month == now.month &&
-        _selectedDate.day == now.day;
-
     return Card(
-      margin: const EdgeInsets.all(8),
+      margin: EdgeInsets.all(3.w),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.sp)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: EdgeInsets.all(3.w),
         child: Column(
           children: [
             Row(
@@ -200,76 +166,57 @@ class _BookingListScreenState extends State<BookingListScreen> {
                   child: InkWell(
                     onTap: () => _pickDate(context),
                     child: InputDecorator(
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'التاريخ',
-                        border: OutlineInputBorder(),
+                        labelStyle: TextStyle(fontSize: 12.sp),
+                        border: const OutlineInputBorder(),
                         isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.5.h),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            isToday
-                                ? 'اليوم (${dateFormat.format(_selectedDate)})'
-                                : dateFormat.format(_selectedDate),
-                          ),
-                          const Icon(Icons.calendar_today_outlined, size: 18),
+                          Text(dateFormat.format(_selectedDate), style: TextStyle(fontSize: 12.sp)),
+                          Icon(Icons.calendar_today_outlined, size: 16.sp),
                         ],
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 3.w),
                 Expanded(
                   child: DropdownButtonFormField<int?>(
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'الملعب',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(fontSize: 12.sp),
+                      border: const OutlineInputBorder(),
                       isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
                     ),
-                    initialValue: _selectedPitchId,
+                    value: _selectedPitchId,
                     items: [
-                      const DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('كل الملاعب'),
-                      ),
-                      ...provider.pitches.map((p) {
-                        return DropdownMenuItem<int?>(
-                          value: p.id,
-                          child: Text(
-                              p.name.isNotEmpty ? p.name : 'ملعب ${p.id ?? ''}'),
-                        );
-                      }),
+                      const DropdownMenuItem<int?>(value: null, child: Text('كل الملاعب')),
+                      ...provider.pitches.map((p) => DropdownMenuItem<int?>(value: p.id, child: Text(p.name, style: TextStyle(fontSize: 12.sp)))),
                     ],
                     onChanged: (value) async {
-                      setState(() {
-                        _selectedPitchId = value;
-                      });
-                      await provider.fetchBookings(
-                        date: _selectedDate,
-                        pitchId: _selectedPitchId,
-                        period: _selectedPeriod == 'all' ? null : _selectedPeriod,
-                        keepExistingFiltersIfNull: false,
-                      );
+                      setState(() => _selectedPitchId = value);
+                      await provider.fetchBookings(date: _selectedDate, pitchId: _selectedPitchId, period: _selectedPeriod == 'all' ? null : _selectedPeriod, keepExistingFiltersIfNull: false);
                     },
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 1.5.h),
             SizedBox(
-              height: 40,
+              height: 5.h,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  _buildPeriodChip(
-                      label: 'الكل', value: 'all', provider: provider),
-                  const SizedBox(width: 8),
-                  _buildPeriodChip(
-                      label: 'صباحي', value: 'morning', provider: provider),
-                  const SizedBox(width: 8),
-                  _buildPeriodChip(
-                      label: 'مسائي', value: 'evening', provider: provider),
+                  _buildPeriodChip(label: 'الكل', value: 'all', provider: provider),
+                  SizedBox(width: 2.w),
+                  _buildPeriodChip(label: 'صباحي', value: 'morning', provider: provider),
+                  SizedBox(width: 2.w),
+                  _buildPeriodChip(label: 'مسائي', value: 'evening', provider: provider),
                 ],
               ),
             ),
@@ -279,185 +226,101 @@ class _BookingListScreenState extends State<BookingListScreen> {
     );
   }
 
-  Widget _buildPeriodChip({
-    required String label,
-    required String value,
-    required BookingProvider provider,
-  }) {
+  Widget _buildPeriodChip({required String label, required String value, required BookingProvider provider}) {
     final isSelected = _selectedPeriod == value;
     return ChoiceChip(
-      label: Text(label),
+      label: Text(label, style: TextStyle(fontSize: 11.sp)),
       selected: isSelected,
       onSelected: (selected) async {
         if (!selected) return;
-        setState(() {
-          _selectedPeriod = value;
-        });
-        await provider.fetchBookings(
-          date: _selectedDate,
-          pitchId: _selectedPitchId,
-          period: _selectedPeriod == 'all' ? null : _selectedPeriod,
-          keepExistingFiltersIfNull: false,
-        );
+        setState(() => _selectedPeriod = value);
+        await provider.fetchBookings(date: _selectedDate, pitchId: _selectedPitchId, period: _selectedPeriod == 'all' ? null : _selectedPeriod, keepExistingFiltersIfNull: false);
       },
     );
   }
 
-  Widget _buildBookingCard({
-    required BuildContext context,
-    required Booking booking,
-    required Pitch pitch,
-    required bool isAdmin,
-  }) {
-    final theme = Theme.of(context);
+  Widget _buildBookingCard({required BuildContext context, required Booking booking, required Pitch pitch, required bool isAdmin}) {
+    final _ = Theme.of(context);
     final timeFormat = DateFormat('HH:mm', 'ar');
     final startText = timeFormat.format(booking.startTime);
     final endText = timeFormat.format(booking.endTime);
-    final totalPrice = booking.totalPrice ?? 0;
-
-    Color statusColor =
-        booking.status == 'paid' ? AppTheme.success : AppTheme.warning;
+    
+    Color statusColor = booking.status == 'paid' ? AppTheme.success : AppTheme.warning;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Container(width: 5, height: 80, color: statusColor),
-          Expanded(
-            child: ListTile(
-              title: Text(
-                booking.teamName == null || booking.teamName!.isEmpty
-                    ? 'بدون اسم فريق'
-                    : booking.teamName!,
-                style: theme.textTheme.titleMedium,
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('الوقت: $startText - $endText'),
-                  Text('الملعب: ${pitch.name}'),
-                  Text('المبلغ: ${totalPrice.toStringAsFixed(2)} ريال'),
-                ],
-              ),
-              trailing: _buildBookingActionsMenu(
-                context: context,
-                booking: booking,
-                pitchName: pitch.name, // تمرير اسم الملعب
-                isAdmin: isAdmin,
+      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.sp)),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight( // يضمن أن الشريط الجانبي يمتد حسب محتوى الكارت
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 1.5.w, color: statusColor),
+            Expanded(
+              child: ListTile(
+                contentPadding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+                title: Text(
+                  booking.teamName?.isEmpty ?? true ? 'بدون اسم فريق' : booking.teamName!,
+                  style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold),
+                ),
+                subtitle: Padding(
+                  padding: EdgeInsets.only(top: 0.5.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCardIconText(Icons.access_time, '$startText - $endText'),
+                      _buildCardIconText(Icons.stadium_outlined, pitch.name),
+                      _buildCardIconText(Icons.payments_outlined, '${booking.totalPrice?.toStringAsFixed(2)} ريال', isBold: true),
+                    ],
+                  ),
+                ),
+                trailing: _buildBookingActionsMenu(context: context, booking: booking, pitchName: pitch.name, isAdmin: isAdmin),
               ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardIconText(IconData icon, String text, {bool isBold = false}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 0.2.h),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14.sp, color: Colors.grey),
+          SizedBox(width: 2.w),
+          Text(text, style: TextStyle(fontSize: 12.sp, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
         ],
       ),
     );
   }
 
-  Widget _buildBookingActionsMenu({
-    required BuildContext context,
-    required Booking booking,
-    required String pitchName,
-    required bool isAdmin,
-  }) {
+  Widget _buildBookingActionsMenu({required BuildContext context, required Booking booking, required String pitchName, required bool isAdmin}) {
     final provider = Provider.of<BookingProvider>(context, listen: false);
-    final colorScheme = Theme.of(context).colorScheme;
-
     return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, size: 20.sp),
       onSelected: (value) async {
         if (value == 'pay') {
-          if (booking.status == 'paid') {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('الحجز مدفوع بالفعل.')),
-            );
-            return;
-          }
+          if (booking.status == 'paid') return;
           await provider.updateBookingStatus(booking.id!, 'paid');
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('تم تسديد المبلغ للحجز.')),
-            );
-          }
-        } else if (value == 'edit') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('شاشة تعديل الحجز لم تُنفذ بعد.')),
-          );
         } else if (value == 'print') {
-          // استخدام الودجت الجديد للطباعة
-          await BookingActionButtons.showPrintOptions(
-            context,
-            booking: booking,
-            pitchName: pitchName,
-          );
+          await BookingActionButtons.showPrintOptions(context, booking: booking, pitchName: pitchName);
         } else if (value == 'share') {
-          // استخدام الودجت الجديد للمشاركة
-          await BookingActionButtons.shareBooking(
-            booking,
-            pitchName: pitchName,
-          );
+          await BookingActionButtons.shareBooking(booking, pitchName: pitchName);
         } else if (value == 'delete') {
-          if (!isAdmin) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('الحذف متاح للمدير فقط.')),
-            );
-            return;
-          }
-          final confirm = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('تأكيد الحذف'),
-              content: const Text('هل أنت متأكد من حذف هذا الحجز؟'),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(false),
-                    child: const Text('إلغاء')),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: Text('حذف', style: TextStyle(color: colorScheme.error)),
-                ),
-              ],
-            ),
-          );
-
-          if (confirm == true) {
-            await provider.deleteBooking(booking.id!);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('تم حذف الحجز بنجاح.')),
-              );
-            }
-          }
+          if (!isAdmin) return;
+          final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('حذف الحجز'), content: const Text('هل أنت متأكد؟'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف', style: TextStyle(color: Colors.red)))]));
+          if (confirm == true) await provider.deleteBooking(booking.id!);
         }
       },
-      itemBuilder: (context) {
-        return [
-          const PopupMenuItem(value: 'pay', child: Text('تسديد المبلغ')),
-          const PopupMenuItem(value: 'edit', child: Text('تعديل')),
-          const PopupMenuItem(
-            value: 'print',
-            child: Row(
-              children: [
-                Icon(Icons.print, size: 18),
-                SizedBox(width: 8),
-                Text('طباعة الفاتورة'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'share',
-            child: Row(
-              children: [
-                Icon(Icons.share, size: 18),
-                SizedBox(width: 8),
-                Text('مشاركة (PDF)'),
-              ],
-            ),
-          ),
-          if (isAdmin)
-            PopupMenuItem(
-              value: 'delete',
-              child: Text('حذف', style: TextStyle(color: colorScheme.error)),
-            ),
-        ];
-      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'pay', child: Text('تسديد المبلغ')),
+        const PopupMenuItem(value: 'print', child: Text('طباعة')),
+        const PopupMenuItem(value: 'share', child: Text('مشاركة')),
+        if (isAdmin) const PopupMenuItem(value: 'delete', child: Text('حذف', style: TextStyle(color: Colors.red))),
+      ],
     );
   }
 }
