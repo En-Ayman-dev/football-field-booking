@@ -133,9 +133,7 @@ class AuthProvider extends ChangeNotifier {
       return true;
     }
 
-    if (_errorMessage == null) {
-       _errorMessage = 'بيانات الدخول غير صحيحة.';
-    }
+    _errorMessage ??= 'بيانات الدخول غير صحيحة.';
     _isLoading = false;
     notifyListeners();
     return false;
