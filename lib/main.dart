@@ -10,13 +10,18 @@ import 'core/database/database_helper.dart';
 import 'core/session/session_manager.dart';
 import 'core/settings/settings_notifier.dart';
 import 'core/theme/app_theme.dart';
-import 'core/utils/responsive_helper.dart'; // استيراد الهيلبر الجديد
+import 'core/utils/responsive_helper.dart';
 import 'providers/auth_provider.dart';
 import 'features/deposits/presentation/providers/deposit_provider.dart';
-import 'features/dashboard/presentation/pages/dashboard_screen.dart' as dashboard;
-import 'features/booking/presentation/pages/booking_list_screen.dart' as bookings;
+import 'features/reports/presentation/providers/reports_provider.dart'; // استيراد مزود التقارير الجديد
+import 'features/dashboard/presentation/pages/dashboard_screen.dart'
+    as dashboard;
+import 'features/booking/presentation/pages/booking_list_screen.dart'
+    as bookings;
 import 'features/auth/presentation/pages/login_screen.dart' as auth;
 import 'features/settings/presentation/screens/settings_screen.dart';
+import 'features/reports/presentation/screens/reports_screen.dart'; // استيراد شاشة التقارير (سننشئها لاحقاً)
+import 'features/pitches_balls/presentation/providers/pitch_ball_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,14 +46,13 @@ class _BootstrapAppState extends State<_BootstrapApp> {
     _initFuture = _initApp();
   }
 
-  Future<void> _initApp() async {
+Future<void> _initApp() async {
     try {
       await di.init();
       await SessionManager.instance.init();
-      await DatabaseHelper().seedAdminUser();
-    } catch (e, s) {
+      DatabaseHelper().seedAdminUser(); 
+    } catch (e) {
       debugPrint('Error while initializing app: $e');
-      debugPrint('$s');
       rethrow;
     }
   }
@@ -92,6 +96,13 @@ class _BootstrapAppState extends State<_BootstrapApp> {
             ChangeNotifierProvider<DepositProvider>(
               create: (_) => DepositProvider(),
             ),
+            // --- إضافة مزود التقارير هنا ---
+            ChangeNotifierProvider<ReportsProvider>(
+              create: (_) => ReportsProvider(),
+            ),
+            ChangeNotifierProvider<PitchBallProvider>(
+              create: (_) => PitchBallProvider()..loadAll(),
+            ),
           ],
           child: const ArenaManagerApp(),
         );
@@ -125,18 +136,18 @@ class _ArenaManagerAppState extends State<ArenaManagerApp> {
       themeMode: _themeMode,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      // --- التعديل هنا: تهيئة محرك التجاوب ليعمل في كل الشاشات ---
       builder: (context, child) {
         ResponsiveHelper().init(context);
         return child!;
       },
-      // -------------------------------------------------------
       initialRoute: '/login',
       routes: {
         '/login': (context) => const auth.LoginScreen(),
         '/dashboard': (context) => const dashboard.DashboardScreen(),
         '/bookings': (context) => const bookings.BookingListScreenWarp(),
         '/settings': (context) => const SettingsScreen(),
+        '/reports': (context) =>
+            const ReportsScreen(), // تعريف مسار شاشة التقارير
       },
     );
   }

@@ -37,7 +37,7 @@ class ResponsiveHelper {
 
 // Extension لسهولة الاستخدام داخل الـ Widgets
 extension ResponsiveSizeExtension on num {
-  double get w => ResponsiveHelper.w(this.toDouble());
-  double get h => ResponsiveHelper.h(this.toDouble());
-  double get sp => ResponsiveHelper.sp(this.toDouble());
+  double get w => ResponsiveHelper.w(toDouble());
+  double get h => ResponsiveHelper.h(toDouble());
+  double get sp => ResponsiveHelper.sp(toDouble());
 }

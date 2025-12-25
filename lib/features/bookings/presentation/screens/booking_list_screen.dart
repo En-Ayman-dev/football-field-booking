@@ -193,7 +193,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
                     ),
-                    value: _selectedPitchId,
+                    initialValue: _selectedPitchId,
                     items: [
                       const DropdownMenuItem<int?>(value: null, child: Text('كل الملاعب')),
                       ...provider.pitches.map((p) => DropdownMenuItem<int?>(value: p.id, child: Text(p.name, style: TextStyle(fontSize: 12.sp)))),
