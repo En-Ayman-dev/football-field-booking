@@ -201,47 +201,79 @@ class DatabaseHelper {
       // --- التحديثات القديمة (الإصدارات 1-5) ---
       try {
         final info = await db.rawQuery('PRAGMA table_info($tableUsers)');
-        final hasWage = info.any((col) => (col['name'] as String?) == 'wage_per_booking');
+        final hasWage = info.any(
+          (col) => (col['name'] as String?) == 'wage_per_booking',
+        );
         if (!hasWage) {
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN wage_per_booking REAL');
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN wage_per_booking REAL',
+          );
         }
 
-        final hasCanManagePitches = info.any((col) => (col['name'] as String?) == 'can_manage_pitches');
+        final hasCanManagePitches = info.any(
+          (col) => (col['name'] as String?) == 'can_manage_pitches',
+        );
         if (!hasCanManagePitches) {
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_pitches INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_manage_pitches INTEGER NOT NULL DEFAULT 0',
+          );
         }
 
-        final hasCanManageCoaches = info.any((col) => (col['name'] as String?) == 'can_manage_coaches');
+        final hasCanManageCoaches = info.any(
+          (col) => (col['name'] as String?) == 'can_manage_coaches',
+        );
         if (!hasCanManageCoaches) {
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_coaches INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_manage_coaches INTEGER NOT NULL DEFAULT 0',
+          );
         }
 
-        final hasCanManageBookings = info.any((col) => (col['name'] as String?) == 'can_manage_bookings');
+        final hasCanManageBookings = info.any(
+          (col) => (col['name'] as String?) == 'can_manage_bookings',
+        );
         if (!hasCanManageBookings) {
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_manage_bookings INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_manage_bookings INTEGER NOT NULL DEFAULT 0',
+          );
         }
 
-        final hasCanViewReports = info.any((col) => (col['name'] as String?) == 'can_view_reports');
+        final hasCanViewReports = info.any(
+          (col) => (col['name'] as String?) == 'can_view_reports',
+        );
         if (!hasCanViewReports) {
-          await db.execute('ALTER TABLE $tableUsers ADD COLUMN can_view_reports INTEGER NOT NULL DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE $tableUsers ADD COLUMN can_view_reports INTEGER NOT NULL DEFAULT 0',
+          );
         }
       } catch (e) {
         if (kDebugMode) print('Error user table upgrades: $e');
       }
 
       try {
-        final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
-        final hasStaffWage = bookingInfo.any((col) => (col['name'] as String?) == 'staff_wage');
+        final bookingInfo = await db.rawQuery(
+          'PRAGMA table_info($tableBookings)',
+        );
+        final hasStaffWage = bookingInfo.any(
+          (col) => (col['name'] as String?) == 'staff_wage',
+        );
         if (!hasStaffWage) {
-          await db.execute('ALTER TABLE $tableBookings ADD COLUMN staff_wage REAL');
+          await db.execute(
+            'ALTER TABLE $tableBookings ADD COLUMN staff_wage REAL',
+          );
         }
 
-        final hasCoachWage = bookingInfo.any((col) => (col['name'] as String?) == 'coach_wage');
+        final hasCoachWage = bookingInfo.any(
+          (col) => (col['name'] as String?) == 'coach_wage',
+        );
         if (!hasCoachWage) {
-          await db.execute('ALTER TABLE $tableBookings ADD COLUMN coach_wage REAL');
+          await db.execute(
+            'ALTER TABLE $tableBookings ADD COLUMN coach_wage REAL',
+          );
         }
 
-        final hasPeriod = bookingInfo.any((col) => (col['name'] as String?) == 'period');
+        final hasPeriod = bookingInfo.any(
+          (col) => (col['name'] as String?) == 'period',
+        );
         if (!hasPeriod) {
           await db.execute('ALTER TABLE $tableBookings ADD COLUMN period TEXT');
         }
@@ -250,7 +282,9 @@ class DatabaseHelper {
       }
 
       try {
-        final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
+        final bookingInfo = await db.rawQuery(
+          'PRAGMA table_info($tableBookings)',
+        );
         final expectedColumns = <String, String>{
           'team_name': 'TEXT',
           'customer_phone': 'TEXT',
@@ -261,7 +295,9 @@ class DatabaseHelper {
           final colType = entry.value;
           final hasCol = bookingInfo.any((c) => (c['name'] as String?) == name);
           if (!hasCol) {
-            await db.execute('ALTER TABLE $tableBookings ADD COLUMN $name $colType');
+            await db.execute(
+              'ALTER TABLE $tableBookings ADD COLUMN $name $colType',
+            );
           }
         }
       } catch (e) {
@@ -269,7 +305,9 @@ class DatabaseHelper {
       }
 
       try {
-        final depositInfo = await db.rawQuery('PRAGMA table_info($tableDepositRequests)');
+        final depositInfo = await db.rawQuery(
+          'PRAGMA table_info($tableDepositRequests)',
+        );
         if (depositInfo.isEmpty) {
           await db.execute('''
             CREATE TABLE IF NOT EXISTS $tableDepositRequests (
@@ -300,29 +338,39 @@ class DatabaseHelper {
           tablePitches,
           tableBalls,
           tableBookings,
-          tableDepositRequests
+          tableDepositRequests,
         ];
 
         for (var table in tablesToSync) {
           try {
             final info = await db.rawQuery('PRAGMA table_info($table)');
-            
+
             // إضافة firebase_id
-            final hasFirebaseId = info.any((col) => (col['name'] as String?) == 'firebase_id');
+            final hasFirebaseId = info.any(
+              (col) => (col['name'] as String?) == 'firebase_id',
+            );
             if (!hasFirebaseId) {
-              await db.execute('ALTER TABLE $table ADD COLUMN firebase_id TEXT UNIQUE');
+              await db.execute(
+                'ALTER TABLE $table ADD COLUMN firebase_id TEXT UNIQUE',
+              );
             }
 
             // إضافة deleted_at
-            final hasDeletedAt = info.any((col) => (col['name'] as String?) == 'deleted_at');
+            final hasDeletedAt = info.any(
+              (col) => (col['name'] as String?) == 'deleted_at',
+            );
             if (!hasDeletedAt) {
               await db.execute('ALTER TABLE $table ADD COLUMN deleted_at TEXT');
             }
 
             // التأكد من وجود is_dirty (احتياطاً)
-            final hasIsDirty = info.any((col) => (col['name'] as String?) == 'is_dirty');
+            final hasIsDirty = info.any(
+              (col) => (col['name'] as String?) == 'is_dirty',
+            );
             if (!hasIsDirty) {
-              await db.execute('ALTER TABLE $table ADD COLUMN is_dirty INTEGER NOT NULL DEFAULT 0');
+              await db.execute(
+                'ALTER TABLE $table ADD COLUMN is_dirty INTEGER NOT NULL DEFAULT 0',
+              );
             }
           } catch (e) {
             if (kDebugMode) print('Error upgrading table $table for sync: $e');
@@ -333,15 +381,22 @@ class DatabaseHelper {
       // --- التحديث الجديد (الإصدار 7): إضافة is_deposited ---
       if (newVersion >= 7) {
         try {
-          final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
-          final hasIsDeposited = bookingInfo.any((col) => (col['name'] as String?) == 'is_deposited');
-          
+          final bookingInfo = await db.rawQuery(
+            'PRAGMA table_info($tableBookings)',
+          );
+          final hasIsDeposited = bookingInfo.any(
+            (col) => (col['name'] as String?) == 'is_deposited',
+          );
+
           if (!hasIsDeposited) {
             // نضيف العمود ونعطي قيمة افتراضية 0 (غير مورد)
-            await db.execute('ALTER TABLE $tableBookings ADD COLUMN is_deposited INTEGER NOT NULL DEFAULT 0');
+            await db.execute(
+              'ALTER TABLE $tableBookings ADD COLUMN is_deposited INTEGER NOT NULL DEFAULT 0',
+            );
           }
         } catch (e) {
-          if (kDebugMode) print('Error upgrading booking table for is_deposited: $e');
+          if (kDebugMode)
+            print('Error upgrading booking table for is_deposited: $e');
         }
       }
     }
@@ -357,28 +412,107 @@ class DatabaseHelper {
 
   // --- دوال التقارير المضافة ---
 
-  /// جلب كافة الحجوزات في فترة زمنية معينة للتقرير
-  /// تم التعديل: استثناء الحجوزات الملغاة (status != 'cancelled') من التقارير
-  Future<List<Map<String, dynamic>>> getRawBookingsForReport(DateTime start, DateTime end) async {
+  /// جلب كافة الحجوزات في فترة زمنية معينة للتقرير العام
+  /// يستثني الحجوزات الملغاة
+  Future<List<Map<String, dynamic>>> getRawBookingsForReport(
+    DateTime start,
+    DateTime end,
+  ) async {
     final db = await database;
     // نحول التواريخ لـ Strings للبحث في SQLite
-    final String startStr = DateTime(start.year, start.month, start.day, 0, 0, 0).toIso8601String();
-    final String endStr = DateTime(end.year, end.month, end.day, 23, 59, 59).toIso8601String();
+    final String startStr = DateTime(
+      start.year,
+      start.month,
+      start.day,
+      0,
+      0,
+      0,
+    ).toIso8601String();
+    final String endStr = DateTime(
+      end.year,
+      end.month,
+      end.day,
+      23,
+      59,
+      59,
+    ).toIso8601String();
 
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT b.*, p.name as pitch_name 
       FROM $tableBookings b
       JOIN $tablePitches p ON b.pitch_id = p.id
       WHERE b.start_time >= ? AND b.start_time <= ? AND b.status != 'cancelled'
       ORDER BY b.start_time ASC
-    ''', [startStr, endStr]);
+    ''',
+      [startStr, endStr],
+    );
+  }
+
+  /// --- دالة جديدة: جلب كافة الحجوزات (شاملة الملغاة) للتقرير التفصيلي ---
+  Future<List<Map<String, dynamic>>> getBookingsForDetailedReport(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final db = await database;
+    final String startStr = DateTime(
+      start.year,
+      start.month,
+      start.day,
+      0,
+      0,
+      0,
+    ).toIso8601String();
+    final String endStr = DateTime(
+      end.year,
+      end.month,
+      end.day,
+      23,
+      59,
+      59,
+    ).toIso8601String();
+
+    // نستخدم LEFT JOIN لضمان ظهور الحجز حتى لو تم حذف الموظف أو المدرب
+    return await db.rawQuery(
+      '''
+      SELECT 
+        b.*, 
+        p.name as pitch_name,
+        u.name as employee_name,
+        c.name as coach_name
+      FROM $tableBookings b
+      JOIN $tablePitches p ON b.pitch_id = p.id
+      LEFT JOIN $tableUsers u ON b.created_by_user_id = u.id
+      LEFT JOIN $tableCoaches c ON b.coach_id = c.id
+      WHERE b.start_time >= ? AND b.start_time <= ?
+      ORDER BY b.start_time ASC
+    ''',
+      [startStr, endStr],
+    );
   }
 
   /// جلب توريدات المبالغ المقبولة في فترة زمنية معينة
-  Future<List<Map<String, dynamic>>> getApprovedDepositsForReport(DateTime start, DateTime end) async {
+  Future<List<Map<String, dynamic>>> getApprovedDepositsForReport(
+    DateTime start,
+    DateTime end,
+  ) async {
     final db = await database;
-    final String startStr = DateTime(start.year, start.month, start.day, 0, 0, 0).toIso8601String();
-    final String endStr = DateTime(end.year, end.month, end.day, 23, 59, 59).toIso8601String();
+    final String startStr = DateTime(
+      start.year,
+      start.month,
+      start.day,
+      0,
+      0,
+      0,
+    ).toIso8601String();
+    final String endStr = DateTime(
+      end.year,
+      end.month,
+      end.day,
+      23,
+      59,
+      59,
+    ).toIso8601String();
 
     return await db.query(
       tableDepositRequests,
@@ -392,34 +526,77 @@ class DatabaseHelper {
   Future<int> insert(String table, Map<String, dynamic> values) async {
     final db = await database;
     values['is_dirty'] = values['is_dirty'] ?? 1;
-    values['updated_at'] = values['updated_at'] ?? DateTime.now().toIso8601String();
-    return await db.insert(table, values, conflictAlgorithm: ConflictAlgorithm.replace);
+    values['updated_at'] =
+        values['updated_at'] ?? DateTime.now().toIso8601String();
+    return await db.insert(
+      table,
+      values,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getAll(String table, {String? where, List<Object?>? whereArgs, String? orderBy, int? limit, int? offset}) async {
+  Future<List<Map<String, dynamic>>> getAll(
+    String table, {
+    String? where,
+    List<Object?>? whereArgs,
+    String? orderBy,
+    int? limit,
+    int? offset,
+  }) async {
     final db = await database;
-    return await db.query(table, where: where, whereArgs: whereArgs, orderBy: orderBy, limit: limit, offset: offset);
+    return await db.query(
+      table,
+      where: where,
+      whereArgs: whereArgs,
+      orderBy: orderBy,
+      limit: limit,
+      offset: offset,
+    );
   }
 
   Future<Map<String, dynamic>?> getById(String table, int id) async {
     final db = await database;
-    final result = await db.query(table, where: 'id = ?', whereArgs: [id], limit: 1);
+    final result = await db.query(
+      table,
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     return result.isNotEmpty ? result.first : null;
   }
 
-  Future<int> update(String table, Map<String, dynamic> values, {String? where, List<Object?>? whereArgs}) async {
+  Future<int> update(
+    String table,
+    Map<String, dynamic> values, {
+    String? where,
+    List<Object?>? whereArgs,
+  }) async {
     final db = await database;
     values['is_dirty'] = values['is_dirty'] ?? 1;
-    values['updated_at'] = values['updated_at'] ?? DateTime.now().toIso8601String();
-    return await db.update(table, values, where: where, whereArgs: whereArgs, conflictAlgorithm: ConflictAlgorithm.replace);
+    values['updated_at'] =
+        values['updated_at'] ?? DateTime.now().toIso8601String();
+    return await db.update(
+      table,
+      values,
+      where: where,
+      whereArgs: whereArgs,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
-  Future<int> delete(String table, {String? where, List<Object?>? whereArgs}) async {
+  Future<int> delete(
+    String table, {
+    String? where,
+    List<Object?>? whereArgs,
+  }) async {
     final db = await database;
     return await db.delete(table, where: where, whereArgs: whereArgs);
   }
 
-  Future<List<Map<String, dynamic>>> rawQuery(String sql, [List<Object?>? arguments]) async {
+  Future<List<Map<String, dynamic>>> rawQuery(
+    String sql, [
+    List<Object?>? arguments,
+  ]) async {
     final db = await database;
     return db.rawQuery(sql, arguments);
   }
@@ -438,14 +615,19 @@ class DatabaseHelper {
   }
 
   /// تحديث حالة السجل بعد المزامنة الناجحة (is_dirty = 0) وحفظ الـ firebase_id
-  Future<void> markAsSynced(String table, int localId, String firebaseId) async {
+  Future<void> markAsSynced(
+    String table,
+    int localId,
+    String firebaseId,
+  ) async {
     final db = await database;
     await db.update(
       table,
       {
         'is_dirty': 0,
         'firebase_id': firebaseId,
-        'updated_at': DateTime.now().toIso8601String(), // تحديث الوقت ليتوافق مع السيرفر
+        'updated_at': DateTime.now()
+            .toIso8601String(), // تحديث الوقت ليتوافق مع السيرفر
       },
       where: 'id = ?',
       whereArgs: [localId],
@@ -463,7 +645,8 @@ class DatabaseHelper {
   }) async {
     final db = await database;
     // شرط التداخل: (StartA < EndB) AND (EndA > StartB)
-    String where = "pitch_id = ? AND status != 'cancelled' AND (start_time < ? AND end_time > ?)";
+    String where =
+        "pitch_id = ? AND status != 'cancelled' AND (start_time < ? AND end_time > ?)";
     List<Object?> args = [pitchId, endTime, startTime];
 
     if (excludeBookingId != null) {
@@ -471,10 +654,12 @@ class DatabaseHelper {
       args.add(excludeBookingId);
     }
 
-    final count = Sqflite.firstIntValue(await db.rawQuery(
-      "SELECT COUNT(*) FROM $tableBookings WHERE $where",
-      args,
-    ));
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery(
+        "SELECT COUNT(*) FROM $tableBookings WHERE $where",
+        args,
+      ),
+    );
 
     return (count ?? 0) == 0;
   }
@@ -482,9 +667,12 @@ class DatabaseHelper {
   // --- دوال خاصة بصفحة التوريد (الجديدة) ---
 
   /// جلب الحجوزات الخاصة بموظف معين، والتي هي (مدفوعة) و (غير موردة بعد)
-  Future<List<Map<String, dynamic>>> getWorkerPaidUndepositedBookings(int userId) async {
+  Future<List<Map<String, dynamic>>> getWorkerPaidUndepositedBookings(
+    int userId,
+  ) async {
     final db = await database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT b.*, p.name as pitch_name 
       FROM $tableBookings b
       JOIN $tablePitches p ON b.pitch_id = p.id
@@ -493,19 +681,24 @@ class DatabaseHelper {
         AND b.is_deposited = 0
         AND (b.deleted_at IS NULL)
       ORDER BY b.start_time DESC
-    ''', [userId]);
+    ''',
+      [userId],
+    );
   }
 
   /// جلب عدد الحجوزات "المعلقة" الخاصة بالموظف (لغرض الإشعار)
   Future<int> getWorkerPendingBookingsCount(int userId) async {
     final db = await database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT COUNT(*) as count 
       FROM $tableBookings 
       WHERE created_by_user_id = ? 
         AND status = 'pending'
         AND (deleted_at IS NULL)
-    ''', [userId]);
+    ''',
+      [userId],
+    );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
@@ -533,10 +726,10 @@ class DatabaseHelper {
   Future<void> seedAdminUser() async {
     try {
       final db = await database;
-      
+
       final List<Map<String, dynamic>> result = await db.rawQuery(
         'SELECT COUNT(*) as count FROM $tableUsers WHERE username = ?',
-        ['admin']
+        ['admin'],
       );
 
       final bool adminExists = (result.first['count'] as int) > 0;
@@ -565,7 +758,7 @@ class DatabaseHelper {
       } else {
         await db.insert(tableUsers, adminValues);
       }
-      
+
       if (kDebugMode) print('Database: Admin seeding completed successfully.');
     } catch (e) {
       if (kDebugMode) print('Database Error: Seeding failed: $e');

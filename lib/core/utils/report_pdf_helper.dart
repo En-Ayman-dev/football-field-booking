@@ -10,15 +10,16 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/models/pitch.dart';
 import '../../features/reports/data/models/daily_report_model.dart';
+import '../../features/reports/presentation/providers/reports_provider.dart'; // لاستيراد الموديلات التفصيلية
 
 class ReportPdfHelper {
-  static Future<pw.Document> _buildDocument({
-    required List<DailyReport> reports,
-    required List<Pitch> pitches,
-    required DateTime startDate,
-    required DateTime endDate,
-  }) async {
-    final pdf = pw.Document();
+  // --- تحميل الخطوط والصور (Singleton لتقليل الحمل) ---
+  static pw.Font? _arabicFont;
+  static pw.Font? _arabicFontBold;
+  static pw.MemoryImage? _logoImage;
+
+  static Future<void> _loadResources() async {
+    if (_arabicFont != null) return;
 
     final arabicFontData = await rootBundle.load(
       "assets/fonts/Cairo-Regular.ttf",
@@ -26,43 +27,16 @@ class ReportPdfHelper {
     final arabicFontBoldData = await rootBundle.load(
       "assets/fonts/Cairo-Bold.ttf",
     );
-
     final logoData = await rootBundle.load("assets/images/logo.jpg");
-    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
 
-    final pw.Font arabicFont = pw.Font.ttf(arabicFontData);
-    final pw.Font arabicFontBold = pw.Font.ttf(arabicFontBoldData);
-
-    final df = DateFormat('yyyy/MM/dd', 'ar');
-
-    pdf.addPage(
-      pw.MultiPage(
-        // --- تعديل 1: تقليل الهوامش للنصف لكسب مساحة ---
-        pageFormat: PdfPageFormat.a4.landscape.copyWith(
-          marginBottom: 0.5 * PdfPageFormat.cm,
-          marginTop: 0.5 * PdfPageFormat.cm,
-          marginLeft: 0.5 * PdfPageFormat.cm,
-          marginRight: 0.5 * PdfPageFormat.cm,
-        ),
-        // ----------------------------------------------
-        textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(base: arabicFont, bold: arabicFontBold),
-        build: (context) => [
-          _buildHeader(
-            df.format(startDate),
-            df.format(endDate),
-            arabicFontBold,
-            logoImage,
-          ),
-          pw.SizedBox(height: 5), // تقليل المسافة هنا
-          _buildReportTable(reports, pitches, arabicFont, arabicFontBold),
-          pw.SizedBox(height: 5), // تقليل المسافة هنا
-          _buildFooter(reports, arabicFontBold),
-        ],
-      ),
-    );
-    return pdf;
+    _arabicFont = pw.Font.ttf(arabicFontData);
+    _arabicFontBold = pw.Font.ttf(arabicFontBoldData);
+    _logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
   }
+
+  // ==========================================================
+  // 1. التقرير العام (اليومي) - القديم مع تحسينات بسيطة
+  // ==========================================================
 
   static Future<void> generateAndPrintReport({
     required List<DailyReport> reports,
@@ -70,16 +44,16 @@ class ReportPdfHelper {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final pdf = await _buildDocument(
-      reports: reports,
-      pitches: pitches,
-      startDate: startDate,
-      endDate: endDate,
+    await _loadResources();
+    final pdf = await _buildGeneralDocument(
+      reports,
+      pitches,
+      startDate,
+      endDate,
     );
-
     await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'تقرير_شامل_${DateFormat('yyyy-MM-dd').format(startDate)}.pdf',
+      onLayout: (format) async => pdf.save(),
+      name: 'تقرير_عام_${DateFormat('yyyy-MM-dd').format(startDate)}.pdf',
     );
   }
 
@@ -89,29 +63,264 @@ class ReportPdfHelper {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final pdf = await _buildDocument(
-      reports: reports,
-      pitches: pitches,
-      startDate: startDate,
-      endDate: endDate,
+    await _loadResources();
+    final pdf = await _buildGeneralDocument(
+      reports,
+      pitches,
+      startDate,
+      endDate,
     );
-
     final bytes = await pdf.save();
-
     final tempDir = await getTemporaryDirectory();
-    final fileName = 'report_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    final file = File('${tempDir.path}/$fileName');
+    final file = File('${tempDir.path}/report_general.pdf');
     await file.writeAsBytes(bytes);
+    await Share.shareXFiles([XFile(file.path)], text: 'التقرير اليومي العام');
+  }
 
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text:
-          'تقرير مبيعات وحجوزات الملاعب - الفترة من ${DateFormat('yyyy/MM/dd').format(startDate)}',
+  static Future<pw.Document> _buildGeneralDocument(
+    List<DailyReport> reports,
+    List<Pitch> pitches,
+    DateTime start,
+    DateTime end,
+  ) async {
+    final pdf = pw.Document();
+    final df = DateFormat('yyyy/MM/dd', 'ar');
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape.copyWith(
+          marginBottom: 0.5 * PdfPageFormat.cm,
+          marginTop: 0.5 * PdfPageFormat.cm,
+          marginLeft: 0.5 * PdfPageFormat.cm,
+          marginRight: 0.5 * PdfPageFormat.cm,
+        ),
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(
+          base: _arabicFont!,
+          bold: _arabicFontBold!,
+        ),
+        build: (context) => [
+          _buildHeader(
+            'تقرير مبيعات وحجوزات الملاعب (يومي)',
+            df.format(start),
+            df.format(end),
+            _arabicFontBold!,
+            _logoImage!,
+          ),
+          pw.SizedBox(height: 5),
+          _buildGeneralTable(reports, pitches, _arabicFont!, _arabicFontBold!),
+          pw.SizedBox(height: 5),
+          _buildGeneralFooter(reports, _arabicFontBold!),
+        ],
+      ),
+    );
+    return pdf;
+  }
+
+  // ==========================================================
+  // 2. التقرير التفصيلي (الجديد) - الاحترافي
+  // ==========================================================
+
+  static Future<void> generateAndPrintDetailedReport({
+    required List<EmployeeDetailedReport> employees,
+    required List<CoachDetailedReport> coaches,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    await _loadResources();
+    final pdf = await _buildDetailedDocument(
+      employees,
+      coaches,
+      startDate,
+      endDate,
+    );
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdf.save(),
+      name: 'تقرير_تفصيلي_${DateFormat('yyyy-MM-dd').format(startDate)}.pdf',
     );
   }
 
-  // --- التعديل هنا: تصغير المسافات والارتفاع قليلاً ---
+  static Future<void> shareDetailedReport({
+    required List<EmployeeDetailedReport> employees,
+    required List<CoachDetailedReport> coaches,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    await _loadResources();
+    final pdf = await _buildDetailedDocument(
+      employees,
+      coaches,
+      startDate,
+      endDate,
+    );
+    final bytes = await pdf.save();
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/report_detailed.pdf');
+    await file.writeAsBytes(bytes);
+    await Share.shareXFiles([
+      XFile(file.path),
+    ], text: 'التقرير التفصيلي للموظفين والمدربين');
+  }
+
+  static Future<pw.Document> _buildDetailedDocument(
+    List<EmployeeDetailedReport> employees,
+    List<CoachDetailedReport> coaches,
+    DateTime start,
+    DateTime end,
+  ) async {
+    final pdf = pw.Document();
+    final df = DateFormat('yyyy/MM/dd', 'ar');
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4, // Portrait للكشف الطويل
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(
+          base: _arabicFont!,
+          bold: _arabicFontBold!,
+        ),
+        build: (context) => [
+          _buildHeader(
+            'كشف حساب تفصيلي (موظفين / مدربين)',
+            df.format(start),
+            df.format(end),
+            _arabicFontBold!,
+            _logoImage!,
+          ),
+          pw.SizedBox(height: 20),
+
+          // 1. قسم الموظفين
+          pw.Text(
+            'أولاً: كشف حساب الموظفين',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue900,
+            ),
+          ),
+          pw.SizedBox(height: 5),
+          pw.TableHelper.fromTextArray(
+            headers: [
+              'الموظف',
+              'عدد الحجوزات',
+              'إجمالي المبيعات',
+              'الأجر المستحق',
+              'حجوزات ملغاة',
+              'غير مورد (عدد)',
+            ],
+            headerStyle: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+              fontSize: 10,
+            ),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.teal),
+            cellStyle: const pw.TextStyle(fontSize: 9),
+            cellAlignment: pw.Alignment.center,
+            data: employees
+                .map(
+                  (e) => [
+                    e.name,
+                    e.paidBookingsCount.toString(),
+                    '${e.totalSales.toStringAsFixed(2)} ريال',
+                    '${e.totalWages.toStringAsFixed(2)} ريال',
+                    e.cancelledBookings.isNotEmpty
+                        ? e.cancelledBookings.join(', ')
+                        : '-',
+                    e.pendingDepositionCount > 0
+                        ? '${e.pendingDepositionCount}'
+                        : '-',
+                  ],
+                )
+                .toList(),
+          ),
+
+          pw.SizedBox(height: 20),
+
+          // 2. قسم المدربين
+          pw.Text(
+            'ثانياً: كشف حساب المدربين',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue900,
+            ),
+          ),
+          pw.SizedBox(height: 5),
+          pw.TableHelper.fromTextArray(
+            headers: ['المدرب', 'عدد الحصص التدريبية', 'إجمالي الأجر المستحق'],
+            headerStyle: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+              fontSize: 10,
+            ),
+            headerDecoration: const pw.BoxDecoration(
+              color: PdfColors.orange800,
+            ),
+            cellStyle: const pw.TextStyle(fontSize: 9),
+            cellAlignment: pw.Alignment.center,
+            data: coaches
+                .map(
+                  (c) => [
+                    c.name,
+                    c.bookingsCount.toString(),
+                    '${c.totalWages.toStringAsFixed(2)} ريال',
+                  ],
+                )
+                .toList(),
+          ),
+
+          pw.SizedBox(height: 30),
+
+          // 3. الملخص الختامي
+          pw.Divider(),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.end,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'إجمالي أجور الموظفين:  ${employees.fold(0.0, (s, e) => s + e.totalWages).toStringAsFixed(2)} ريال',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.Text(
+                    'إجمالي أجور المدربين:  ${coaches.fold(0.0, (s, c) => s + c.totalWages).toStringAsFixed(2)} ريال',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+        footer: (context) => pw.Column(
+          children: [
+            pw.Divider(),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'تم الاستخراج في: ${DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now())}',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+                ),
+                pw.Text(
+                  'صفحة ${context.pageNumber} من ${context.pagesCount}',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    return pdf;
+  }
+
+  // ==========================================================
+  // Helpers (مكونات مشتركة - لم يتم تغيير اللوجو أو الهيدر)
+  // ==========================================================
+
   static pw.Widget _buildHeader(
+    String title, // تم تغيير النص ليكون ديناميكياً حسب التقرير
     String start,
     String end,
     pw.Font boldFont,
@@ -121,24 +330,24 @@ class ReportPdfHelper {
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         pw.Text(
-          'تقرير مبيعات وحجوزات الملاعب التفصيلي',
+          title, // استخدام العنوان المتغير
           style: pw.TextStyle(
             font: boldFont,
-            fontSize: 18, // تصغير بسيط للخط من 20
+            fontSize: 18,
             color: PdfColors.blue900,
           ),
           textAlign: pw.TextAlign.center,
         ),
 
         pw.SizedBox(height: 2),
-        // حاوية الشعار (تم ضبط الارتفاع لـ 100 بدلاً من 120)
+        // حاوية الشعار (كما كانت تماماً)
         pw.Container(
           height: 100,
           width: 350,
           child: pw.Image(logo, fit: pw.BoxFit.contain),
         ),
 
-        pw.SizedBox(height: 5), // تقليل المسافة
+        pw.SizedBox(height: 5),
 
         pw.Text(
           'من تاريخ: $start   إلى: $end',
@@ -151,9 +360,8 @@ class ReportPdfHelper {
       ],
     );
   }
-  // --------------------------------------------------
 
-  static pw.Widget _buildReportTable(
+  static pw.Widget _buildGeneralTable(
     List<DailyReport> reports,
     List<Pitch> pitches,
     pw.Font font,
@@ -211,7 +419,10 @@ class ReportPdfHelper {
     );
   }
 
-  static pw.Widget _buildFooter(List<DailyReport> reports, pw.Font boldFont) {
+  static pw.Widget _buildGeneralFooter(
+    List<DailyReport> reports,
+    pw.Font boldFont,
+  ) {
     final double totalNet = reports.fold(
       0,
       (sum, item) => sum + item.remainingAmount,
@@ -226,7 +437,7 @@ class ReportPdfHelper {
     );
 
     return pw.Container(
-      padding: const pw.EdgeInsets.all(4), // تقليل الحشو الداخلي
+      padding: const pw.EdgeInsets.all(4),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey400),
         color: PdfColors.grey50,

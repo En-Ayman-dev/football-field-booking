@@ -1,14 +1,17 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:blue_thermal_printer/blue_thermal_printer.dart'; // مكتبة البلوتوث
+import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'dart:ui' as ui;
+
 import '../../../../core/utils/responsive_helper.dart';
 import '../../../../core/utils/report_pdf_helper.dart';
-import '../../../../core/utils/thermal_printer_helper.dart'; // محرك الطباعة الحرارية
+import '../../../../core/utils/thermal_printer_helper.dart';
 import '../../../pitches_balls/presentation/providers/pitch_ball_provider.dart';
 import '../providers/reports_provider.dart';
 import '../../data/models/daily_report_model.dart';
-import 'dart:ui' as ui;
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -17,28 +20,125 @@ class ReportsScreen extends StatefulWidget {
   State<ReportsScreen> createState() => _ReportsScreenState();
 }
 
-class _ReportsScreenState extends State<ReportsScreen> {
+class _ReportsScreenState extends State<ReportsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime _endDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchData();
     });
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   void _fetchData() {
-    context.read<ReportsProvider>().generateReports(_startDate, _endDate);
+    final reportsProv = context.read<ReportsProvider>();
+    reportsProv.generateReports(_startDate, _endDate); // التقرير العام
+    reportsProv.generateDetailedReports(
+      _startDate,
+      _endDate,
+    ); // التقرير التفصيلي
     context.read<PitchBallProvider>().loadAll();
   }
 
-  // --- دالة اختيار الطابعة والاتصال بها ---
+  // --- الطباعة والمشاركة الذكية ---
+  Future<void> _handleReportAction(
+    BuildContext context, {
+    required bool isShare,
+  }) async {
+    final reportsProv = context.read<ReportsProvider>();
+    final pitchProv = context.read<PitchBallProvider>();
+
+    // التحقق من وجود بيانات بناءً على التبويب النشط
+    bool hasData = _tabController.index == 0
+        ? reportsProv.reports.isNotEmpty
+        : (reportsProv.employeeReports.isNotEmpty ||
+              reportsProv.coachReports.isNotEmpty);
+
+    if (!hasData) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد بيانات للعملية المطلوبة')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      if (_tabController.index == 0) {
+        // --- التقرير العام ---
+        if (isShare) {
+          await ReportPdfHelper.shareReport(
+            reports: reportsProv.reports,
+            pitches: pitchProv.pitches,
+            startDate: _startDate,
+            endDate: _endDate,
+          );
+        } else {
+          await ReportPdfHelper.generateAndPrintReport(
+            reports: reportsProv.reports,
+            pitches: pitchProv.pitches,
+            startDate: _startDate,
+            endDate: _endDate,
+          );
+        }
+      } else {
+        // --- التقرير التفصيلي (الجديد) ---
+        if (isShare) {
+          await ReportPdfHelper.shareDetailedReport(
+            employees: reportsProv.employeeReports,
+            coaches: reportsProv.coachReports,
+            startDate: _startDate,
+            endDate: _endDate,
+          );
+        } else {
+          await ReportPdfHelper.generateAndPrintDetailedReport(
+            employees: reportsProv.employeeReports,
+            coaches: reportsProv.coachReports,
+            startDate: _startDate,
+            endDate: _endDate,
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('حدث خطأ: $e')));
+    } finally {
+      if (mounted) Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _showPrinterPicker() async {
+    // الطباعة الحرارية تدعم حالياً التقرير العام فقط (كنص)
+    // يمكن تطويرها لاحقاً لطباعة التفصيلي
+    if (_tabController.index == 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'الطباعة الحرارية المباشرة غير مدعومة للتقرير التفصيلي حالياً. استخدم طباعة PDF.',
+          ),
+        ),
+      );
+      return;
+    }
+
     List<BluetoothDevice> devices =
         await ThermalPrinterHelper.getPairedDevices();
-
     if (!mounted) return;
 
     showModalBottomSheet(
@@ -61,9 +161,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               if (devices.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(20),
-                  child: Text(
-                    "لا توجد أجهزة بلوتوث مقترنة. يرجى الاقتران من إعدادات الهاتف أولاً.",
-                  ),
+                  child: Text("لا توجد أجهزة بلوتوث مقترنة."),
                 ),
               Expanded(
                 child: ListView.builder(
@@ -93,7 +191,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("جاري الاتصال بالطابعة...")));
-
     bool connected = await ThermalPrinterHelper.connect(device);
 
     if (connected) {
@@ -108,53 +205,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("فشل الاتصال بالطابعة")));
-    }
-  }
-
-  Future<void> _handleReportAction(
-    BuildContext context, {
-    required bool isShare,
-  }) async {
-    final reportsProv = context.read<ReportsProvider>();
-    final pitchProv = context.read<PitchBallProvider>();
-
-    if (reportsProv.reports.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لا توجد بيانات للعملية المطلوبة في الفترة المختارة'),
-        ),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      if (isShare) {
-        await ReportPdfHelper.shareReport(
-          reports: reportsProv.reports,
-          pitches: pitchProv.pitches,
-          startDate: _startDate,
-          endDate: _endDate,
-        );
-      } else {
-        await ReportPdfHelper.generateAndPrintReport(
-          reports: reportsProv.reports,
-          pitches: pitchProv.pitches,
-          startDate: _startDate,
-          endDate: _endDate,
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('حدث خطأ أثناء معالجة الملف: $e')));
-    } finally {
-      if (mounted) Navigator.of(context).pop();
     }
   }
 
@@ -185,24 +235,30 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            'تقارير النظام التفصيلية',
+            'التقارير والإحصائيات',
             style: TextStyle(fontSize: 18.sp),
           ),
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: 'التقرير العام (اليومي)'),
+              Tab(text: 'تفاصيل الموظفين والمدربين'),
+            ],
+          ),
           actions: [
-            // زر الطباعة الحرارية (جديد)
             IconButton(
               icon: Icon(
                 Icons.bluetooth_connected,
                 size: 20.sp,
                 color: Colors.teal,
               ),
-              tooltip: 'طباعة حرارية (Bluetooth)',
               onPressed: _showPrinterPicker,
+              tooltip: 'طباعة حرارية (للتقرير العام فقط)',
             ),
             IconButton(
               icon: Icon(Icons.share_rounded, size: 20.sp, color: Colors.blue),
-              tooltip: 'مشاركة التقرير',
               onPressed: () => _handleReportAction(context, isShare: true),
+              tooltip: 'مشاركة PDF',
             ),
             IconButton(
               icon: Icon(
@@ -210,8 +266,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 size: 20.sp,
                 color: Colors.redAccent,
               ),
-              tooltip: 'عرض PDF للطباعة',
               onPressed: () => _handleReportAction(context, isShare: false),
+              tooltip: 'طباعة PDF',
             ),
             SizedBox(width: 2.w),
           ],
@@ -221,24 +277,27 @@ class _ReportsScreenState extends State<ReportsScreen> {
             _buildFilterBar(),
             const Divider(height: 1),
             Expanded(
-              child: Consumer2<ReportsProvider, PitchBallProvider>(
-                builder: (context, reportsProv, pitchProv, _) {
-                  if (reportsProv.isLoading) {
+              child: Consumer<ReportsProvider>(
+                builder: (context, provider, _) {
+                  if (provider.isLoading)
                     return const Center(child: CircularProgressIndicator());
-                  }
 
-                  if (reportsProv.reports.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'لا توجد بيانات للفترة المختارة',
-                        style: TextStyle(fontSize: 14.sp),
-                      ),
-                    );
-                  }
+                  return TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // التبويب الأول
+                      provider.reports.isEmpty
+                          ? Center(
+                              child: Text(
+                                'لا توجد بيانات.',
+                                style: TextStyle(fontSize: 14.sp),
+                              ),
+                            )
+                          : _buildGeneralReportTab(provider.reports),
 
-                  return _buildReportTable(
-                    reportsProv.reports,
-                    pitchProv.pitches,
+                      // التبويب الثاني
+                      _buildDetailedReportTab(provider),
+                    ],
                   );
                 },
               ),
@@ -280,7 +339,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildReportTable(List<DailyReport> reports, List pitches) {
+  Widget _buildGeneralReportTab(List<DailyReport> reports) {
+    final pitchProv = context.read<PitchBallProvider>();
     return SingleChildScrollView(
       scrollDirection: Axis.vertical,
       child: SingleChildScrollView(
@@ -291,26 +351,223 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
           columnSpacing: 20.sp,
           horizontalMargin: 10.sp,
-          columns: _buildColumns(pitches),
-          rows: reports.map((report) => _buildRow(report, pitches)).toList(),
+          columns: _buildColumns(pitchProv.pitches),
+          rows: reports
+              .map((report) => _buildRow(report, pitchProv.pitches))
+              .toList(),
         ),
       ),
     );
   }
 
+  Widget _buildDetailedReportTab(ReportsProvider provider) {
+    if (provider.employeeReports.isEmpty && provider.coachReports.isEmpty) {
+      return Center(
+        child: Text(
+          'لا توجد بيانات تفصيلية.',
+          style: TextStyle(fontSize: 14.sp),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(4.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (provider.employeeReports.isNotEmpty) ...[
+            _buildSectionHeader('أداء الموظفين', Icons.badge),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: provider.employeeReports.length,
+              itemBuilder: (ctx, idx) {
+                final emp = provider.employeeReports[idx];
+                return Card(
+                  margin: EdgeInsets.only(bottom: 1.5.h),
+                  elevation: 2,
+                  child: Padding(
+                    padding: EdgeInsets.all(3.w),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18.sp,
+                              child: Text(emp.name[0]),
+                            ),
+                            SizedBox(width: 3.w),
+                            Text(
+                              emp.name,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 2.w,
+                                vertical: 0.5.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                'الأجر المستحق: ${emp.totalWages.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  color: Colors.green.shade800,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11.sp,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildStatItem(
+                              'المبيعات',
+                              emp.totalSales.toStringAsFixed(2),
+                            ),
+                            _buildStatItem(
+                              'حجوزات',
+                              '${emp.paidBookingsCount}',
+                            ),
+                            _buildStatItem(
+                              'غير مورد',
+                              '${emp.pendingDepositionCount}',
+                              isWarning: emp.pendingDepositionCount > 0,
+                            ),
+                          ],
+                        ),
+                        if (emp.cancelledBookings.isNotEmpty) ...[
+                          SizedBox(height: 1.h),
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.all(2.w),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              'ملغيات (أرقام): ${emp.cancelledBookings.join(", ")}',
+                              style: TextStyle(
+                                color: Colors.red.shade800,
+                                fontSize: 10.sp,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            SizedBox(height: 2.h),
+          ],
+
+          if (provider.coachReports.isNotEmpty) ...[
+            _buildSectionHeader('أجور المدربين', Icons.sports),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: provider.coachReports.length,
+              itemBuilder: (ctx, idx) {
+                final coach = provider.coachReports[idx];
+                return Card(
+                  margin: EdgeInsets.only(bottom: 1.5.h),
+                  elevation: 2,
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.sports_soccer,
+                      color: Colors.blue,
+                    ),
+                    title: Text(
+                      coach.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.sp,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'عدد الحصص التدريبية: ${coach.bookingsCount}',
+                      style: TextStyle(fontSize: 11.sp),
+                    ),
+                    trailing: Text(
+                      '${coach.totalWages.toStringAsFixed(2)} ريال',
+                      style: TextStyle(
+                        color: Colors.blue.shade800,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.sp,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 1.5.h),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).primaryColor, size: 20.sp),
+          SizedBox(width: 2.w),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, {bool isWarning = false}) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 10.sp, color: Colors.grey.shade600),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13.sp,
+            fontWeight: FontWeight.bold,
+            color: isWarning ? Colors.red : Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
   List<DataColumn> _buildColumns(List pitches) {
-    List<DataColumn> cols = [DataColumn(label: _colText('اليوم / التاريخ'))];
+    List<DataColumn> cols = [DataColumn(label: _colText('اليوم'))];
     for (var pitch in pitches) {
       cols.add(DataColumn(label: _colText(pitch.name)));
     }
     cols.addAll([
-      DataColumn(label: _colText('مجموع\nالساعات')),
-      DataColumn(label: _colText('المبلغ\nالإجمالي')),
-      DataColumn(label: _colText('أجور\nعمال')),
-      DataColumn(label: _colText('أجور\nمدربين')),
-      DataColumn(label: _colText('المبلغ\nالمورد')),
-      DataColumn(label: _colText('الصافي\nالمتبقي')),
-      DataColumn(label: _colText('الحجوزات\nالمسددة')),
+      DataColumn(label: _colText('ساعات')),
+      DataColumn(label: _colText('إجمالي')),
+      DataColumn(label: _colText('أجور\nع')),
+      DataColumn(label: _colText('أجور\nم')),
+      DataColumn(label: _colText('مورد')),
+      DataColumn(label: _colText('صافي')),
+      DataColumn(label: _colText('مسدد')),
       DataColumn(label: _colText('ملاحظات')),
     ]);
     return cols;
@@ -320,12 +577,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     List<DataCell> cells = [
       DataCell(
         Text(
-          '${report.dayName}\n${report.formattedDate}',
+          '${report.dayName}\n${DateFormat('M/d').format(report.date)}',
           style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.bold),
         ),
       ),
     ];
-
     for (var pitch in pitches) {
       final hours = report.pitchHours[pitch.id] ?? 0.0;
       cells.add(
@@ -337,24 +593,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       );
     }
-
     cells.addAll([
       DataCell(Text(DailyReport.formatDecimalHours(report.totalHours))),
-      DataCell(Text(report.totalAmount.toStringAsFixed(2))),
-      DataCell(Text(report.totalStaffWages.toStringAsFixed(2))),
-      DataCell(Text(report.totalCoachWages.toStringAsFixed(2))),
+      DataCell(Text(report.totalAmount.toStringAsFixed(0))),
+      DataCell(Text(report.totalStaffWages.toStringAsFixed(0))),
+      DataCell(Text(report.totalCoachWages.toStringAsFixed(0))),
       DataCell(
         Text(
-          report.depositedAmount.toStringAsFixed(2),
-          style: const TextStyle(
-            color: Colors.green,
-            fontWeight: FontWeight.bold,
-          ),
+          report.depositedAmount.toStringAsFixed(0),
+          style: const TextStyle(color: Colors.green),
         ),
       ),
       DataCell(
         Text(
-          report.remainingAmount.toStringAsFixed(2),
+          report.remainingAmount.toStringAsFixed(0),
           style: const TextStyle(
             color: Colors.blue,
             fontWeight: FontWeight.bold,
@@ -364,7 +616,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       DataCell(Center(child: Text('${report.paidBookingsCount}'))),
       DataCell(
         SizedBox(
-          width: 25.w,
+          width: 20.w,
           child: Text(
             report.notes,
             style: TextStyle(fontSize: 9.sp),
@@ -374,7 +626,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       ),
     ]);
-
     return DataRow(cells: cells);
   }
 
@@ -382,7 +633,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return Text(
       label,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.bold),
+      style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.bold),
     );
   }
 }
