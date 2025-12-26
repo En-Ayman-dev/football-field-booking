@@ -17,7 +17,8 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _databaseName = 'arena_manager.db';
-  static const int _databaseVersion = 5;
+  // --- تم رفع الإصدار لتطبيق التعديلات الجديدة ---
+  static const int _databaseVersion = 6;
 
   // أسماء الجداول
   static const String tableUsers = 'users';
@@ -56,10 +57,11 @@ class DatabaseHelper {
   Future<void> _onCreate(Database db, int version) async {
     final batch = db.batch();
 
-    // جدول المستخدمين
+    // جدول المستخدمين - تم إضافة firebase_id و deleted_at
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableUsers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT UNIQUE,
         name TEXT NOT NULL,
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
@@ -73,55 +75,63 @@ class DatabaseHelper {
         can_manage_bookings INTEGER NOT NULL DEFAULT 0,
         can_view_reports INTEGER NOT NULL DEFAULT 0,
         is_dirty INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     ''');
 
-    // جدول المدربين
+    // جدول المدربين - تم إضافة firebase_id و deleted_at
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableCoaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT UNIQUE,
         name TEXT NOT NULL,
         phone TEXT,
         specialization TEXT,
         price_per_hour REAL,
         is_active INTEGER NOT NULL DEFAULT 1,
         is_dirty INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     ''');
 
-    // جدول الملاعب
+    // جدول الملاعب - تم إضافة firebase_id و deleted_at
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tablePitches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT UNIQUE,
         name TEXT NOT NULL,
         location TEXT,
         price_per_hour REAL,
         is_indoor INTEGER NOT NULL DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1,
         is_dirty INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     ''');
 
-    // جدول الكرات
+    // جدول الكرات - تم إضافة firebase_id و deleted_at
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableBalls (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT UNIQUE,
         name TEXT NOT NULL,
         size TEXT,
         quantity INTEGER NOT NULL DEFAULT 0,
         is_available INTEGER NOT NULL DEFAULT 1,
         is_dirty INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     ''');
 
-    // جدول الحجوزات
+    // جدول الحجوزات - تم إضافة firebase_id و deleted_at
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableBookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT UNIQUE,
         user_id INTEGER NOT NULL,
         coach_id INTEGER,
         pitch_id INTEGER NOT NULL,
@@ -138,6 +148,7 @@ class DatabaseHelper {
         staff_wage REAL,
         coach_wage REAL,
         is_dirty INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES $tableUsers (id) ON DELETE CASCADE,
         FOREIGN KEY (coach_id) REFERENCES $tableCoaches (id) ON DELETE SET NULL,
@@ -161,10 +172,11 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول طلبات التوريد
+    // جدول طلبات التوريد - تم إضافة firebase_id و deleted_at
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableDepositRequests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT UNIQUE,
         user_id INTEGER NOT NULL,
         amount REAL NOT NULL,
         note TEXT,
@@ -173,6 +185,7 @@ class DatabaseHelper {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         processed_at TEXT,
         is_dirty INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES $tableUsers (id) ON DELETE CASCADE,
         FOREIGN KEY (processed_by) REFERENCES $tableUsers (id) ON DELETE SET NULL
@@ -184,6 +197,7 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (newVersion > oldVersion) {
+      // --- التحديثات القديمة (الإصدارات 1-5) ---
       try {
         final info = await db.rawQuery('PRAGMA table_info($tableUsers)');
         final hasWage = info.any((col) => (col['name'] as String?) == 'wage_per_booking');
@@ -276,6 +290,44 @@ class DatabaseHelper {
       } catch (e) {
         if (kDebugMode) print('Error creating $tableDepositRequests: $e');
       }
+
+      // --- التحديث الجديد (الإصدار 6) للمزامنة ---
+      if (newVersion >= 6) {
+        final tablesToSync = [
+          tableUsers,
+          tableCoaches,
+          tablePitches,
+          tableBalls,
+          tableBookings,
+          tableDepositRequests
+        ];
+
+        for (var table in tablesToSync) {
+          try {
+            final info = await db.rawQuery('PRAGMA table_info($table)');
+            
+            // إضافة firebase_id
+            final hasFirebaseId = info.any((col) => (col['name'] as String?) == 'firebase_id');
+            if (!hasFirebaseId) {
+              await db.execute('ALTER TABLE $table ADD COLUMN firebase_id TEXT UNIQUE');
+            }
+
+            // إضافة deleted_at
+            final hasDeletedAt = info.any((col) => (col['name'] as String?) == 'deleted_at');
+            if (!hasDeletedAt) {
+              await db.execute('ALTER TABLE $table ADD COLUMN deleted_at TEXT');
+            }
+
+            // التأكد من وجود is_dirty (احتياطاً)
+            final hasIsDirty = info.any((col) => (col['name'] as String?) == 'is_dirty');
+            if (!hasIsDirty) {
+              await db.execute('ALTER TABLE $table ADD COLUMN is_dirty INTEGER NOT NULL DEFAULT 0');
+            }
+          } catch (e) {
+            if (kDebugMode) print('Error upgrading table $table for sync: $e');
+          }
+        }
+      }
     }
   }
 
@@ -359,6 +411,32 @@ class DatabaseHelper {
     final db = await database;
     await db.execute(sql, arguments);
   }
+
+  // --- دوال مساعدة لعملية المزامنة (جديد) ---
+
+  /// جلب السجلات غير المتزامنة (is_dirty = 1) من جدول معين
+  Future<List<Map<String, dynamic>>> getDirtyRecords(String table) async {
+    final db = await database;
+    return await db.query(table, where: 'is_dirty = ?', whereArgs: [1]);
+  }
+
+  /// تحديث حالة السجل بعد المزامنة الناجحة (is_dirty = 0) وحفظ الـ firebase_id
+  Future<void> markAsSynced(String table, int localId, String firebaseId) async {
+    final db = await database;
+    await db.update(
+      table,
+      {
+        'is_dirty': 0,
+        'firebase_id': firebaseId,
+        'updated_at': DateTime.now().toIso8601String(), // تحديث الوقت ليتوافق مع السيرفر
+      },
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+  }
+
+  // --- تهيئة المستخدم المسؤول ---
+
   Future<void> seedAdminUser() async {
     try {
       final db = await database;

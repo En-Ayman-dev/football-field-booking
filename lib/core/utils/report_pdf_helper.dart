@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,7 +12,6 @@ import '../../data/models/pitch.dart';
 import '../../features/reports/data/models/daily_report_model.dart';
 
 class ReportPdfHelper {
-  /// دالة داخلية خاصة لبناء هيكل المستند لتوحيد التصميم بين الطباعة والمشاركة
   static Future<pw.Document> _buildDocument({
     required List<DailyReport> reports,
     required List<Pitch> pitches,
@@ -19,9 +20,16 @@ class ReportPdfHelper {
   }) async {
     final pdf = pw.Document();
 
-    final arabicFontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
-    final arabicFontBoldData = await rootBundle.load("assets/fonts/Cairo-Bold.ttf");
-    
+    final arabicFontData = await rootBundle.load(
+      "assets/fonts/Cairo-Regular.ttf",
+    );
+    final arabicFontBoldData = await rootBundle.load(
+      "assets/fonts/Cairo-Bold.ttf",
+    );
+
+    final logoData = await rootBundle.load("assets/images/logo.jpg");
+    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+
     final pw.Font arabicFont = pw.Font.ttf(arabicFontData);
     final pw.Font arabicFontBold = pw.Font.ttf(arabicFontBoldData);
 
@@ -29,22 +37,26 @@ class ReportPdfHelper {
 
     pdf.addPage(
       pw.MultiPage(
+        // --- تعديل 1: تقليل الهوامش للنصف لكسب مساحة ---
         pageFormat: PdfPageFormat.a4.landscape.copyWith(
-          marginBottom: 1.0 * PdfPageFormat.cm,
-          marginTop: 1.0 * PdfPageFormat.cm,
-          marginLeft: 1.0 * PdfPageFormat.cm,
-          marginRight: 1.0 * PdfPageFormat.cm,
+          marginBottom: 0.5 * PdfPageFormat.cm,
+          marginTop: 0.5 * PdfPageFormat.cm,
+          marginLeft: 0.5 * PdfPageFormat.cm,
+          marginRight: 0.5 * PdfPageFormat.cm,
         ),
+        // ----------------------------------------------
         textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(
-          base: arabicFont,
-          bold: arabicFontBold,
-        ),
+        theme: pw.ThemeData.withFont(base: arabicFont, bold: arabicFontBold),
         build: (context) => [
-          _buildHeader(df.format(startDate), df.format(endDate), arabicFontBold),
-          pw.SizedBox(height: 10),
+          _buildHeader(
+            df.format(startDate),
+            df.format(endDate),
+            arabicFontBold,
+            logoImage,
+          ),
+          pw.SizedBox(height: 5), // تقليل المسافة هنا
           _buildReportTable(reports, pitches, arabicFont, arabicFontBold),
-          pw.SizedBox(height: 10),
+          pw.SizedBox(height: 5), // تقليل المسافة هنا
           _buildFooter(reports, arabicFontBold),
         ],
       ),
@@ -52,7 +64,6 @@ class ReportPdfHelper {
     return pdf;
   }
 
-  /// وظيفة 1: توليد التقرير وعرضه للمعاينة والطباعة
   static Future<void> generateAndPrintReport({
     required List<DailyReport> reports,
     required List<Pitch> pitches,
@@ -60,10 +71,10 @@ class ReportPdfHelper {
     required DateTime endDate,
   }) async {
     final pdf = await _buildDocument(
-      reports: reports, 
-      pitches: pitches, 
-      startDate: startDate, 
-      endDate: endDate
+      reports: reports,
+      pitches: pitches,
+      startDate: startDate,
+      endDate: endDate,
     );
 
     await Printing.layoutPdf(
@@ -72,7 +83,6 @@ class ReportPdfHelper {
     );
   }
 
-  /// وظيفة 2: توليد التقرير ومشاركته كملف عبر التطبيقات الأخرى
   static Future<void> shareReport({
     required List<DailyReport> reports,
     required List<Pitch> pitches,
@@ -80,50 +90,74 @@ class ReportPdfHelper {
     required DateTime endDate,
   }) async {
     final pdf = await _buildDocument(
-      reports: reports, 
-      pitches: pitches, 
-      startDate: startDate, 
-      endDate: endDate
+      reports: reports,
+      pitches: pitches,
+      startDate: startDate,
+      endDate: endDate,
     );
 
     final bytes = await pdf.save();
-    
-    // حفظ الملف بشكل مؤقت في ذاكرة الهاتف لتتمكن من مشاركته
+
     final tempDir = await getTemporaryDirectory();
     final fileName = 'report_${DateTime.now().millisecondsSinceEpoch}.pdf';
     final file = File('${tempDir.path}/$fileName');
     await file.writeAsBytes(bytes);
 
-    // استدعاء واجهة المشاركة الخاصة بنظام التشغيل
     await Share.shareXFiles(
-      [XFile(file.path)], 
-      text: 'تقرير مبيعات وحجوزات الملاعب - الفترة من ${DateFormat('yyyy/MM/dd').format(startDate)}',
+      [XFile(file.path)],
+      text:
+          'تقرير مبيعات وحجوزات الملاعب - الفترة من ${DateFormat('yyyy/MM/dd').format(startDate)}',
     );
   }
 
-  static pw.Widget _buildHeader(String start, String end, pw.Font boldFont) {
+  // --- التعديل هنا: تصغير المسافات والارتفاع قليلاً ---
+  static pw.Widget _buildHeader(
+    String start,
+    String end,
+    pw.Font boldFont,
+    pw.MemoryImage logo,
+  ) {
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         pw.Text(
           'تقرير مبيعات وحجوزات الملاعب التفصيلي',
-          style: pw.TextStyle(font: boldFont, fontSize: 16, color: PdfColors.blue900),
+          style: pw.TextStyle(
+            font: boldFont,
+            fontSize: 18, // تصغير بسيط للخط من 20
+            color: PdfColors.blue900,
+          ),
+          textAlign: pw.TextAlign.center,
         ),
-        pw.SizedBox(height: 3),
+
+        pw.SizedBox(height: 2),
+        // حاوية الشعار (تم ضبط الارتفاع لـ 100 بدلاً من 120)
+        pw.Container(
+          height: 100,
+          width: 350,
+          child: pw.Image(logo, fit: pw.BoxFit.contain),
+        ),
+
+        pw.SizedBox(height: 5), // تقليل المسافة
+
         pw.Text(
-          'من تاريخ: $start إلى: $end',
-          style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+          'من تاريخ: $start   إلى: $end',
+          style: pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
+          textAlign: pw.TextAlign.center,
         ),
-        pw.Divider(thickness: 1, color: PdfColors.grey400),
+
+        pw.SizedBox(height: 5),
+        pw.Divider(thickness: 1.5, color: PdfColors.blue900),
       ],
     );
   }
+  // --------------------------------------------------
 
   static pw.Widget _buildReportTable(
-    List<DailyReport> reports, 
-    List<Pitch> pitches, 
-    pw.Font font, 
-    pw.Font boldFont
+    List<DailyReport> reports,
+    List<Pitch> pitches,
+    pw.Font font,
+    pw.Font boldFont,
   ) {
     List<String> headers = ['اليوم / التاريخ'];
     for (var p in pitches) {
@@ -137,14 +171,18 @@ class ReportPdfHelper {
       'المورد',
       'المتبقي',
       'حجوزات',
-      'ملاحظات'
+      'ملاحظات',
     ]);
 
     final reversedHeaders = headers.reversed.toList();
 
     return pw.TableHelper.fromTextArray(
       headers: reversedHeaders,
-      headerStyle: pw.TextStyle(font: boldFont, fontSize: 8, color: PdfColors.white),
+      headerStyle: pw.TextStyle(
+        font: boldFont,
+        fontSize: 8,
+        color: PdfColors.white,
+      ),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey700),
       cellStyle: pw.TextStyle(font: font, fontSize: 7.5),
       cellAlignment: pw.Alignment.center,
@@ -168,18 +206,27 @@ class ReportPdfHelper {
       }).toList(),
       columnWidths: {
         reversedHeaders.length - 1: const pw.FixedColumnWidth(60),
-        0: const pw.FlexColumnWidth(2), 
+        0: const pw.FlexColumnWidth(2),
       },
     );
   }
 
   static pw.Widget _buildFooter(List<DailyReport> reports, pw.Font boldFont) {
-    final double totalNet = reports.fold(0, (sum, item) => sum + item.remainingAmount);
-    final double totalDeposited = reports.fold(0, (sum, item) => sum + item.depositedAmount);
-    final double totalRevenue = reports.fold(0, (sum, item) => sum + item.totalAmount);
+    final double totalNet = reports.fold(
+      0,
+      (sum, item) => sum + item.remainingAmount,
+    );
+    final double totalDeposited = reports.fold(
+      0,
+      (sum, item) => sum + item.depositedAmount,
+    );
+    final double totalRevenue = reports.fold(
+      0,
+      (sum, item) => sum + item.totalAmount,
+    );
 
     return pw.Container(
-      padding: const pw.EdgeInsets.all(6),
+      padding: const pw.EdgeInsets.all(4), // تقليل الحشو الداخلي
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey400),
         color: PdfColors.grey50,
@@ -187,22 +234,37 @@ class ReportPdfHelper {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          _summaryText('إجمالي الدخل: ${totalRevenue.toStringAsFixed(2)}', boldFont),
-          _summaryText('إجمالي المورد: ${totalDeposited.toStringAsFixed(2)}', boldFont),
           _summaryText(
-            'صافي المتبقي: ${totalNet.toStringAsFixed(2)} ريال', 
-            boldFont, 
-            color: PdfColors.blue800
+            'إجمالي الدخل: ${totalRevenue.toStringAsFixed(2)}',
+            boldFont,
+          ),
+          _summaryText(
+            'إجمالي المورد: ${totalDeposited.toStringAsFixed(2)}',
+            boldFont,
+          ),
+          _summaryText(
+            'صافي المتبقي: ${totalNet.toStringAsFixed(2)} ريال',
+            boldFont,
+            color: PdfColors.blue800,
           ),
         ],
       ),
     );
   }
 
-  static pw.Widget _summaryText(String text, pw.Font font, {PdfColor color = PdfColors.black}) {
+  static pw.Widget _summaryText(
+    String text,
+    pw.Font font, {
+    PdfColor color = PdfColors.black,
+  }) {
     return pw.Text(
       text,
-      style: pw.TextStyle(font: font, fontSize: 9, fontWeight: pw.FontWeight.bold, color: color),
+      style: pw.TextStyle(
+        font: font,
+        fontSize: 9,
+        fontWeight: pw.FontWeight.bold,
+        color: color,
+      ),
     );
   }
 }

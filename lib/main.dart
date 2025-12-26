@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart'; // استيراد نواة Firebase
 
 import 'core/di.dart' as di;
 import 'package:google_fonts/google_fonts.dart';
@@ -11,16 +12,17 @@ import 'core/session/session_manager.dart';
 import 'core/settings/settings_notifier.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/responsive_helper.dart';
+import 'firebase_options.dart'; // ملف الإعدادات المولد من CLI
 import 'providers/auth_provider.dart';
 import 'features/deposits/presentation/providers/deposit_provider.dart';
-import 'features/reports/presentation/providers/reports_provider.dart'; // استيراد مزود التقارير الجديد
+import 'features/reports/presentation/providers/reports_provider.dart';
 import 'features/dashboard/presentation/pages/dashboard_screen.dart'
     as dashboard;
 import 'features/booking/presentation/pages/booking_list_screen.dart'
     as bookings;
 import 'features/auth/presentation/pages/login_screen.dart' as auth;
 import 'features/settings/presentation/screens/settings_screen.dart';
-import 'features/reports/presentation/screens/reports_screen.dart'; // استيراد شاشة التقارير (سننشئها لاحقاً)
+import 'features/reports/presentation/screens/reports_screen.dart';
 import 'features/pitches_balls/presentation/providers/pitch_ball_provider.dart';
 
 Future<void> main() async {
@@ -46,11 +48,24 @@ class _BootstrapAppState extends State<_BootstrapApp> {
     _initFuture = _initApp();
   }
 
-Future<void> _initApp() async {
+  Future<void> _initApp() async {
     try {
       await di.init();
       await SessionManager.instance.init();
-      DatabaseHelper().seedAdminUser(); 
+      
+      // --- تهيئة Firebase (جديد) ---
+      try {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+        debugPrint("Firebase initialized successfully.");
+      } catch (e) {
+        // نلتقط الخطأ لكي لا يتوقف التطبيق بالكامل إذا فشل الفايربيس
+        debugPrint("Warning: Firebase initialization failed: $e");
+      }
+      // ----------------------------
+
+      DatabaseHelper().seedAdminUser();
     } catch (e) {
       debugPrint('Error while initializing app: $e');
       rethrow;
@@ -96,7 +111,6 @@ Future<void> _initApp() async {
             ChangeNotifierProvider<DepositProvider>(
               create: (_) => DepositProvider(),
             ),
-            // --- إضافة مزود التقارير هنا ---
             ChangeNotifierProvider<ReportsProvider>(
               create: (_) => ReportsProvider(),
             ),
@@ -146,8 +160,7 @@ class _ArenaManagerAppState extends State<ArenaManagerApp> {
         '/dashboard': (context) => const dashboard.DashboardScreen(),
         '/bookings': (context) => const bookings.BookingListScreenWarp(),
         '/settings': (context) => const SettingsScreen(),
-        '/reports': (context) =>
-            const ReportsScreen(), // تعريف مسار شاشة التقارير
+        '/reports': (context) => const ReportsScreen(),
       },
     );
   }

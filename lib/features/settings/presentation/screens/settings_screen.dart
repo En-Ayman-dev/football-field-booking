@@ -9,6 +9,7 @@ import '../../../../core/database/database_helper.dart';
 import '../../../../core/settings/settings_notifier.dart';
 import '../../../../core/utils/responsive_helper.dart'; // استيراد محرك التجاوب
 import '../../../../features/bookings/presentation/providers/booking_provider.dart';
+import '../../../../core/services/sync_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,7 +20,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // تعريف كافة وحدات التحكم (Controllers)
   final Map<String, TextEditingController> _controllers = {
     'default_hour_price': TextEditingController(),
@@ -34,7 +35,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   final DatabaseHelper _dbHelper = DatabaseHelper();
   bool _isLoading = true;
+
+  // متغيرات المزامنة الجديدة
   bool _autoSync = false;
+  String _syncFrequency = 'daily'; // daily, weekly
+
   String _themeMode = 'system';
   String _defaultBookingStatus = 'pending';
 
@@ -56,28 +61,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     try {
       final db = await _dbHelper.database;
-      await db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)');
+      await db.execute(
+        'CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)',
+      );
 
       final rows = await db.query('settings');
-      final settingsMap = {for (var r in rows) r['key']?.toString(): r['value']?.toString()};
+      final settingsMap = {
+        for (var r in rows) r['key']?.toString(): r['value']?.toString(),
+      };
 
       setState(() {
-        _controllers['default_hour_price']!.text = settingsMap['default_hour_price'] ?? '';
-        _controllers['default_hour_price_morning_indoor']!.text = settingsMap['default_hour_price_morning_indoor'] ?? '';
-        _controllers['default_hour_price_evening_indoor']!.text = settingsMap['default_hour_price_evening_indoor'] ?? '';
-        _controllers['default_hour_price_morning_outdoor']!.text = settingsMap['default_hour_price_morning_outdoor'] ?? '';
-        _controllers['default_hour_price_evening_outdoor']!.text = settingsMap['default_hour_price_evening_outdoor'] ?? '';
-        _controllers['default_staff_wage']!.text = settingsMap['default_staff_wage'] ?? '';
-        
+        _controllers['default_hour_price']!.text =
+            settingsMap['default_hour_price'] ?? '';
+        _controllers['default_hour_price_morning_indoor']!.text =
+            settingsMap['default_hour_price_morning_indoor'] ?? '';
+        _controllers['default_hour_price_evening_indoor']!.text =
+            settingsMap['default_hour_price_evening_indoor'] ?? '';
+        _controllers['default_hour_price_morning_outdoor']!.text =
+            settingsMap['default_hour_price_morning_outdoor'] ?? '';
+        _controllers['default_hour_price_evening_outdoor']!.text =
+            settingsMap['default_hour_price_evening_outdoor'] ?? '';
+        _controllers['default_staff_wage']!.text =
+            settingsMap['default_staff_wage'] ?? '';
+
+        // تحميل إعدادات المزامنة
         _autoSync = settingsMap['auto_sync'] == '1';
+        _syncFrequency = settingsMap['sync_frequency'] ?? 'daily';
+
         _themeMode = settingsMap['theme_mode'] ?? 'system';
-        _defaultBookingStatus = settingsMap['default_booking_status'] ?? 'pending';
+        _defaultBookingStatus =
+            settingsMap['default_booking_status'] ?? 'pending';
       });
 
       // تحميل بيانات الأدمن
-      final adminRows = await db.query(DatabaseHelper.tableUsers, where: 'role = ?', whereArgs: ['admin'], limit: 1);
+      final adminRows = await db.query(
+        DatabaseHelper.tableUsers,
+        where: 'role = ?',
+        whereArgs: ['admin'],
+        limit: 1,
+      );
       if (adminRows.isNotEmpty) {
-        _controllers['admin_username']!.text = adminRows.first['username']?.toString() ?? '';
+        _controllers['admin_username']!.text =
+            adminRows.first['username']?.toString() ?? '';
       }
     } catch (e) {
       if (kDebugMode) print('Error loading settings: $e');
@@ -105,22 +130,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         for (var key in keysToSave) {
           final value = _controllers[key]!.text.trim().replaceAll(',', '.');
-          await txn.insert('settings', {'key': key, 'value': value}, conflictAlgorithm: ConflictAlgorithm.replace);
+          await txn.insert('settings', {
+            'key': key,
+            'value': value,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
         }
 
+        // حفظ إعدادات المزامنة
+        await txn.insert('settings', {
+          'key': 'auto_sync',
+          'value': _autoSync ? '1' : '0',
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.insert('settings', {
+          'key': 'sync_frequency',
+          'value': _syncFrequency,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+
         // حفظ الإعدادات العامة
-        await txn.insert('settings', {'key': 'auto_sync', 'value': _autoSync ? '1' : '0'}, conflictAlgorithm: ConflictAlgorithm.replace);
-        await txn.insert('settings', {'key': 'theme_mode', 'value': _themeMode}, conflictAlgorithm: ConflictAlgorithm.replace);
-        await txn.insert('settings', {'key': 'default_booking_status', 'value': _defaultBookingStatus}, conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.insert('settings', {
+          'key': 'theme_mode',
+          'value': _themeMode,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.insert('settings', {
+          'key': 'default_booking_status',
+          'value': _defaultBookingStatus,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ كافة الإعدادات بنجاح.')));
-      
+
+      String message = 'تم حفظ كافة الإعدادات بنجاح.';
+      if (_autoSync) {
+        message += ' سيتم بدء تهيئة المزامنة السحابية.';
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+
       // تحديث الـ Provider ليعكس التغييرات فوراً
       context.read<BookingProvider>().reloadSettings();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ أثناء الحفظ.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('حدث خطأ أثناء الحفظ.')));
     }
   }
 
@@ -135,12 +188,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (newUsername.isNotEmpty) updateValues['username'] = newUsername;
       if (newPassword.isNotEmpty) updateValues['password'] = newPassword;
 
-      await db.update(DatabaseHelper.tableUsers, updateValues, where: 'role = ?', whereArgs: ['admin']);
+      await db.update(
+        DatabaseHelper.tableUsers,
+        updateValues,
+        where: 'role = ?',
+        whereArgs: ['admin'],
+      );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث بيانات الأدمن.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم تحديث بيانات الأدمن.')));
       _controllers['admin_password']!.clear();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('فشل تحديث البيانات.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('فشل تحديث البيانات.')));
     }
   }
 
@@ -149,22 +211,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('تأكيد مسح البيانات'),
-        content: const Text('سيتم حذف كافة الحجوزات والملاعب نهائياً. هل أنت متأكد؟'),
+        content: const Text(
+          'سيتم حذف كافة الحجوزات والملاعب نهائياً. هل أنت متأكد؟',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('نعم، امسح الكل')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('نعم، امسح الكل'),
+          ),
         ],
       ),
     );
     if (confirm != true) return;
-    
+
     await _dbHelper.close();
     final path = await getDatabasesPath();
     await deleteDatabase('$path/arena_manager.db');
     await DatabaseHelper().seedAdminUser();
     if (!mounted) return;
     _loadSettings();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إعادة تهيئة النظام.')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('تمت إعادة تهيئة النظام.')));
   }
 
   @override
@@ -179,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: Icon(Icons.save, size: 22.sp),
               onPressed: _saveSettings,
               tooltip: 'حفظ الإعدادات',
-            )
+            ),
           ],
         ),
         body: _isLoading
@@ -191,7 +263,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _buildSectionTitle('إعدادات أسعار الساعة'),
                     _buildPriceCard(),
-                    
+
+                    SizedBox(height: 3.h),
+                    _buildSectionTitle('المزامنة والنسخ الاحتياطي'),
+                    _buildSyncCard(),
+
                     SizedBox(height: 3.h),
                     _buildSectionTitle('تفضيلات النظام'),
                     _buildGeneralSettingsCard(),
@@ -204,11 +280,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 1.5.h),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.sp)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.sp),
+                        ),
                       ),
                       onPressed: _saveSettings,
                       icon: const Icon(Icons.check_circle_outline),
-                      label: Text('حفظ كافة التغييرات', style: TextStyle(fontSize: 14.sp)),
+                      label: Text(
+                        'حفظ كافة التغييرات',
+                        style: TextStyle(fontSize: 14.sp),
+                      ),
                     ),
                     SizedBox(height: 5.h),
                   ],
@@ -223,7 +304,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: EdgeInsets.only(bottom: 1.h, right: 1.w),
       child: Text(
         title,
-        style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
+        style: TextStyle(
+          fontSize: 15.sp,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).primaryColor,
+        ),
       ),
     );
   }
@@ -238,11 +323,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             _buildPriceField('السعر الافتراضي العام', 'default_hour_price'),
             const Divider(),
-            _buildPriceField('صباحي - ملاعب داخلية', 'default_hour_price_morning_indoor'),
-            _buildPriceField('مسائي - ملاعب داخلية', 'default_hour_price_evening_indoor'),
+            _buildPriceField(
+              'صباحي - ملاعب داخلية',
+              'default_hour_price_morning_indoor',
+            ),
+            _buildPriceField(
+              'مسائي - ملاعب داخلية',
+              'default_hour_price_evening_indoor',
+            ),
             const Divider(),
-            _buildPriceField('صباحي - ملاعب خارجية', 'default_hour_price_morning_outdoor'),
-            _buildPriceField('مسائي - ملاعب خارجية', 'default_hour_price_evening_outdoor'),
+            _buildPriceField(
+              'صباحي - ملاعب خارجية',
+              'default_hour_price_morning_outdoor',
+            ),
+            _buildPriceField(
+              'مسائي - ملاعب خارجية',
+              'default_hour_price_evening_outdoor',
+            ),
             const Divider(),
             _buildPriceField('أجر الموظف لكل حجز', 'default_staff_wage'),
           ],
@@ -269,6 +366,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // --- كارد المزامنة الجديد (تم ربط الزر) ---
+  Widget _buildSyncCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.sp)),
+      child: Column(
+        children: [
+          SwitchListTile(
+            title: Text(
+              'تفعيل المزامنة السحابية (Firebase)',
+              style: TextStyle(fontSize: 13.sp),
+            ),
+            subtitle: Text(
+              'حفظ نسخة احتياطية من البيانات على السحابة',
+              style: TextStyle(fontSize: 11.sp, color: Colors.grey),
+            ),
+            value: _autoSync,
+            activeColor: Colors.green,
+            onChanged: (v) {
+              setState(() => _autoSync = v);
+              if (v) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'تنبيه: سيتم إنشاء/ربط قاعدة البيانات عند الحفظ.',
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
+          if (_autoSync) ...[
+            const Divider(height: 1),
+            ListTile(
+              title: Text(
+                'تكرار المزامنة التلقائية',
+                style: TextStyle(fontSize: 13.sp),
+              ),
+              trailing: DropdownButton<String>(
+                value: _syncFrequency,
+                underline: const SizedBox(),
+                items: const [
+                  DropdownMenuItem(value: 'daily', child: Text('يومياً')),
+                  DropdownMenuItem(value: 'weekly', child: Text('أسبوعياً')),
+                ],
+                onChanged: (v) => setState(() => _syncFrequency = v ?? 'daily'),
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              title: Text(
+                'مزامنة فورية الآن',
+                style: TextStyle(fontSize: 13.sp),
+              ),
+              subtitle: Text(
+                'رفع التغييرات الجديدة فقط',
+                style: TextStyle(fontSize: 10.sp, color: Colors.grey),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.cloud_upload),
+                color: Colors.blue,
+                tooltip: 'اضغط للمزامنة الآن',
+                onPressed: () async {
+                  // إغلاق أي تنبيه سابق
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  // إظهار رسالة جاري التحميل
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('جاري الاتصال بالسيرفر للمزامنة...'),
+                    ),
+                  );
+
+                  try {
+                    // استدعاء خدمة المزامنة الفعلية
+                    await SyncService().syncNow();
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('✅ تمت المزامنة بنجاح!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('❌ فشل المزامنة: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildGeneralSettingsCard() {
     final notifier = context.watch<SettingsNotifier>();
     return Card(
@@ -276,13 +478,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.sp)),
       child: Column(
         children: [
-          SwitchListTile(
-            title: Text('المزامنة التلقائية', style: TextStyle(fontSize: 13.sp)),
-            value: _autoSync,
-            onChanged: (v) => setState(() => _autoSync = v),
-          ),
           ListTile(
-            title: Text('وضع التطبيق (Theme)', style: TextStyle(fontSize: 13.sp)),
+            title: Text(
+              'وضع التطبيق (Theme)',
+              style: TextStyle(fontSize: 13.sp),
+            ),
             trailing: DropdownButton<String>(
               value: _themeMode,
               underline: const SizedBox(),
@@ -294,13 +494,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (v) {
                 if (v == null) return;
                 setState(() => _themeMode = v);
-                ThemeMode mode = v == 'dark' ? ThemeMode.dark : (v == 'light' ? ThemeMode.light : ThemeMode.system);
+                ThemeMode mode = v == 'dark'
+                    ? ThemeMode.dark
+                    : (v == 'light' ? ThemeMode.light : ThemeMode.system);
                 notifier.setThemeMode(mode);
               },
             ),
           ),
+          const Divider(height: 1),
           ListTile(
-            title: Text('حالة الحجز الافتراضية', style: TextStyle(fontSize: 13.sp)),
+            title: Text(
+              'حالة الحجز الافتراضية',
+              style: TextStyle(fontSize: 13.sp),
+            ),
             trailing: DropdownButton<String>(
               value: _defaultBookingStatus,
               underline: const SizedBox(),
@@ -308,7 +514,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 DropdownMenuItem(value: 'pending', child: Text('معلق')),
                 DropdownMenuItem(value: 'paid', child: Text('مدفوع')),
               ],
-              onChanged: (v) => setState(() => _defaultBookingStatus = v ?? 'pending'),
+              onChanged: (v) =>
+                  setState(() => _defaultBookingStatus = v ?? 'pending'),
             ),
           ),
         ],
@@ -327,12 +534,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             TextFormField(
               controller: _controllers['admin_username'],
               style: TextStyle(fontSize: 13.sp),
-              decoration: InputDecoration(labelText: 'اسم مستخدم الأدمن', labelStyle: TextStyle(fontSize: 11.sp)),
+              decoration: InputDecoration(
+                labelText: 'اسم مستخدم الأدمن',
+                labelStyle: TextStyle(fontSize: 11.sp),
+              ),
             ),
             TextFormField(
               controller: _controllers['admin_password'],
               style: TextStyle(fontSize: 13.sp),
-              decoration: InputDecoration(labelText: 'كلمة مرور جديدة', labelStyle: TextStyle(fontSize: 11.sp)),
+              decoration: InputDecoration(
+                labelText: 'كلمة مرور جديدة',
+                labelStyle: TextStyle(fontSize: 11.sp),
+              ),
               obscureText: true,
             ),
             SizedBox(height: 2.h),
@@ -341,19 +554,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _changeAdminCredentials,
-                    child: Text('تحديث الأدمن', style: TextStyle(fontSize: 11.sp)),
+                    child: Text(
+                      'تحديث الأدمن',
+                      style: TextStyle(fontSize: 11.sp),
+                    ),
                   ),
                 ),
                 SizedBox(width: 3.w),
                 Expanded(
                   child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
                     onPressed: _resetDatabase,
-                    child: Text('تهيئة النظام', style: TextStyle(fontSize: 11.sp)),
+                    child: Text(
+                      'تهيئة النظام',
+                      style: TextStyle(fontSize: 11.sp),
+                    ),
                   ),
                 ),
               ],
-            )
+            ),
           ],
         ),
       ),
