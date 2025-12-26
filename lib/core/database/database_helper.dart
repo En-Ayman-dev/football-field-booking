@@ -342,6 +342,7 @@ class DatabaseHelper {
   // --- دوال التقارير المضافة ---
 
   /// جلب كافة الحجوزات في فترة زمنية معينة للتقرير
+  /// تم التعديل: استثناء الحجوزات الملغاة (status != 'cancelled') من التقارير
   Future<List<Map<String, dynamic>>> getRawBookingsForReport(DateTime start, DateTime end) async {
     final db = await database;
     // نحول التواريخ لـ Strings للبحث في SQLite
@@ -352,7 +353,7 @@ class DatabaseHelper {
       SELECT b.*, p.name as pitch_name 
       FROM $tableBookings b
       JOIN $tablePitches p ON b.pitch_id = p.id
-      WHERE b.start_time >= ? AND b.start_time <= ?
+      WHERE b.start_time >= ? AND b.start_time <= ? AND b.status != 'cancelled'
       ORDER BY b.start_time ASC
     ''', [startStr, endStr]);
   }
@@ -412,7 +413,7 @@ class DatabaseHelper {
     await db.execute(sql, arguments);
   }
 
-  // --- دوال مساعدة لعملية المزامنة (جديد) ---
+  // --- دوال مساعدة لعملية المزامنة ---
 
   /// جلب السجلات غير المتزامنة (is_dirty = 1) من جدول معين
   Future<List<Map<String, dynamic>>> getDirtyRecords(String table) async {
@@ -433,6 +434,33 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [localId],
     );
+  }
+
+  // --- التحقق من توفر الملعب (جديد) ---
+  /// يتحقق مما إذا كان الملعب محجوزاً في الفترة المحددة
+  /// يستثني الحجوزات الملغاة (status = 'cancelled')
+  Future<bool> isPitchAvailable({
+    required int pitchId,
+    required String startTime,
+    required String endTime,
+    int? excludeBookingId,
+  }) async {
+    final db = await database;
+    // شرط التداخل: (StartA < EndB) AND (EndA > StartB)
+    String where = "pitch_id = ? AND status != 'cancelled' AND (start_time < ? AND end_time > ?)";
+    List<Object?> args = [pitchId, endTime, startTime];
+
+    if (excludeBookingId != null) {
+      where += " AND id != ?";
+      args.add(excludeBookingId);
+    }
+
+    final count = Sqflite.firstIntValue(await db.rawQuery(
+      "SELECT COUNT(*) FROM $tableBookings WHERE $where",
+      args,
+    ));
+
+    return (count ?? 0) == 0;
   }
 
   // --- تهيئة المستخدم المسؤول ---

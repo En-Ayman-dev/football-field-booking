@@ -264,13 +264,16 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                     : 'تم حفظ الحجز كمعلق (رقم: $insertedId).')
                 : 'تم تحديث بيانات الحجز بنجاح.',
           ),
+          backgroundColor: Colors.green,
         ),
       );
       Navigator.of(context).pop(true);
     } else {
+      // --- التعديل هنا: إظهار رسالة الخطأ القادمة من البروفايدر ---
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تعذر حفظ بيانات الحجز.'),
+        SnackBar(
+          content: Text(provider.errorMessage ?? 'تعذر حفظ بيانات الحجز.'),
+          backgroundColor: Colors.red,
         ),
       );
     }

@@ -6,10 +6,10 @@ import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
 
 import '../../../../data/models/booking.dart';
+import '../../../../data/models/coach.dart';
 import '../../../../data/models/pitch.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../../core/database/database_helper.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/responsive_helper.dart'; // استيراد محرك التجاوب
 import '../providers/booking_provider.dart';
 import '../widgets/booking_action_buttons.dart';
@@ -27,7 +27,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
   int? _selectedPitchId;
   String _selectedPeriod = 'all';
 
-  // --- الدوال البرمجية (بدون تغيير في المنطق) ---
+  // --- الدوال البرمجية ---
   Future<void> _pickDate(BuildContext context) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -52,7 +52,9 @@ class _BookingListScreenState extends State<BookingListScreen> {
 
   Future<void> _openAddBooking(BuildContext context) async {
     final provider = Provider.of<BookingProvider>(context, listen: false);
+    // نمرر التاريخ المختار للشاشة لسهولة الإدخال
     await Navigator.of(context).push(MaterialPageRoute(builder: (context) => const AddBookingScreen()));
+    // تحديث القائمة عند العودة
     await provider.fetchBookings(
       date: _selectedDate,
       pitchId: _selectedPitchId,
@@ -94,6 +96,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
       child: Builder(
         builder: (providerContext) {
           final auth0 = Provider.of<AuthProvider>(providerContext);
+          // السماح بالإضافة للأدمن أو من لديه صلاحية
           final canAddBooking = auth0.isAdmin || (auth0.currentUser?.canManageBookings ?? false);
           
           return Directionality(
@@ -121,15 +124,26 @@ class _BookingListScreenState extends State<BookingListScreen> {
                         child: provider.bookings.isEmpty
                             ? Center(child: Text('لا توجد حجوزات لهذا اليوم.', style: TextStyle(fontSize: 14.sp)))
                             : ListView.builder(
-                                padding: EdgeInsets.only(bottom: 10.h), // مساحة للفلوتنج بوتن
+                                padding: EdgeInsets.only(bottom: 10.h), 
                                 itemCount: provider.bookings.length,
                                 itemBuilder: (context, index) {
                                   final booking = provider.bookings[index];
+                                  // محاولة العثور على الملعب المرتبط
                                   final pitch = provider.pitches.firstWhere(
                                     (p) => p.id == booking.pitchId,
                                     orElse: () => Pitch(id: booking.pitchId, name: 'ملعب ${booking.pitchId}', location: null, pricePerHour: null, isIndoor: false, isActive: true, isDirty: false, updatedAt: booking.updatedAt),
                                   );
-                                  return _buildBookingCard(context: context, booking: booking, pitch: pitch, isAdmin: auth0.isAdmin);
+                                  // محاولة العثور على المدرب
+                                  final coach = (booking.coachId != null && provider.coaches.isNotEmpty) 
+                                      ? provider.coaches.firstWhere((c) => c.id == booking.coachId, orElse: () => Coach(name: 'غير معروف', phone: '', specialization: '', pricePerHour: 0, isActive: true, isDirty: false, updatedAt: DateTime.now()))
+                                      : null;
+
+                                  return _buildBookingCard(
+                                    context: context, 
+                                    booking: booking, 
+                                    pitch: pitch, 
+                                    coachName: coach?.name
+                                  );
                                 },
                               ),
                       ),
@@ -239,29 +253,55 @@ class _BookingListScreenState extends State<BookingListScreen> {
     );
   }
 
-  Widget _buildBookingCard({required BuildContext context, required Booking booking, required Pitch pitch, required bool isAdmin}) {
-    final _ = Theme.of(context);
+  Widget _buildBookingCard({required BuildContext context, required Booking booking, required Pitch pitch, String? coachName}) {
     final timeFormat = DateFormat('HH:mm', 'ar');
     final startText = timeFormat.format(booking.startTime);
     final endText = timeFormat.format(booking.endTime);
     
-    Color statusColor = booking.status == 'paid' ? AppTheme.success : AppTheme.warning;
+    // --- منطق الألوان الجديد ---
+    Color statusColor;
+    String statusText = '';
+    
+    if (booking.status == 'cancelled') {
+      statusColor = Colors.red;
+      statusText = ' (ملغي)';
+    } else if (booking.status == 'paid') {
+      statusColor = Colors.green; // مدفوع
+    } else {
+      statusColor = Colors.orange; // معلق (pending)
+    }
+    // ---------------------------
 
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.sp)),
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight( // يضمن أن الشريط الجانبي يمتد حسب محتوى الكارت
+      elevation: 2,
+      child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(width: 1.5.w, color: statusColor),
+            // الشريط الملون الجانبي يوضح الحالة
+            Container(width: 2.w, color: statusColor),
+            
             Expanded(
               child: ListTile(
-                contentPadding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
-                title: Text(
-                  booking.teamName?.isEmpty ?? true ? 'بدون اسم فريق' : booking.teamName!,
-                  style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold),
+                contentPadding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 0.5.h),
+                title: Row(
+                  children: [
+                    Text(
+                      booking.teamName?.isEmpty ?? true ? 'بدون اسم فريق' : booking.teamName!,
+                      style: TextStyle(
+                        fontSize: 15.sp, 
+                        fontWeight: FontWeight.bold,
+                        // إضافة خط شطب على الاسم إذا كان ملغياً
+                        decoration: booking.status == 'cancelled' ? TextDecoration.lineThrough : null,
+                        color: booking.status == 'cancelled' ? Colors.grey : null,
+                      ),
+                    ),
+                    if (statusText.isNotEmpty)
+                      Text(statusText, style: TextStyle(fontSize: 12.sp, color: statusColor, fontWeight: FontWeight.bold)),
+                  ],
                 ),
                 subtitle: Padding(
                   padding: EdgeInsets.only(top: 0.5.h),
@@ -270,11 +310,30 @@ class _BookingListScreenState extends State<BookingListScreen> {
                     children: [
                       _buildCardIconText(Icons.access_time, '$startText - $endText'),
                       _buildCardIconText(Icons.stadium_outlined, pitch.name),
-                      _buildCardIconText(Icons.payments_outlined, '${booking.totalPrice?.toStringAsFixed(2)} ريال', isBold: true),
+                      _buildCardIconText(
+                        Icons.payments_outlined, 
+                        '${booking.totalPrice?.toStringAsFixed(2)} ريال', 
+                        isBold: true,
+                        // جعل السعر باهتاً إذا كان ملغياً
+                        color: booking.status == 'cancelled' ? Colors.grey : Colors.black
+                      ),
                     ],
                   ),
                 ),
-                trailing: _buildBookingActionsMenu(context: context, booking: booking, pitchName: pitch.name, isAdmin: isAdmin),
+                // --- هنا التغيير الجذري ---
+                // استبدال القائمة القديمة بزر يستدعي BookingActionButtons
+                trailing: IconButton(
+                  icon: Icon(Icons.more_vert, size: 22.sp),
+                  onPressed: () {
+                    // استدعاء القائمة الموحدة الجديدة
+                    BookingActionButtons.showBookingOptions(
+                      context,
+                      booking: booking,
+                      pitchName: pitch.name,
+                      coachName: coachName,
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -283,7 +342,7 @@ class _BookingListScreenState extends State<BookingListScreen> {
     );
   }
 
-  Widget _buildCardIconText(IconData icon, String text, {bool isBold = false}) {
+  Widget _buildCardIconText(IconData icon, String text, {bool isBold = false, Color color = Colors.black}) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 0.2.h),
       child: Row(
@@ -291,36 +350,9 @@ class _BookingListScreenState extends State<BookingListScreen> {
         children: [
           Icon(icon, size: 14.sp, color: Colors.grey),
           SizedBox(width: 2.w),
-          Text(text, style: TextStyle(fontSize: 12.sp, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+          Text(text, style: TextStyle(fontSize: 12.sp, fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: color)),
         ],
       ),
-    );
-  }
-
-  Widget _buildBookingActionsMenu({required BuildContext context, required Booking booking, required String pitchName, required bool isAdmin}) {
-    final provider = Provider.of<BookingProvider>(context, listen: false);
-    return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert, size: 20.sp),
-      onSelected: (value) async {
-        if (value == 'pay') {
-          if (booking.status == 'paid') return;
-          await provider.updateBookingStatus(booking.id!, 'paid');
-        } else if (value == 'print') {
-          await BookingActionButtons.showPrintOptions(context, booking: booking, pitchName: pitchName);
-        } else if (value == 'share') {
-          await BookingActionButtons.shareBooking(booking, pitchName: pitchName);
-        } else if (value == 'delete') {
-          if (!isAdmin) return;
-          final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('حذف الحجز'), content: const Text('هل أنت متأكد؟'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف', style: TextStyle(color: Colors.red)))]));
-          if (confirm == true) await provider.deleteBooking(booking.id!);
-        }
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(value: 'pay', child: Text('تسديد المبلغ')),
-        const PopupMenuItem(value: 'print', child: Text('طباعة')),
-        const PopupMenuItem(value: 'share', child: Text('مشاركة')),
-        if (isAdmin) const PopupMenuItem(value: 'delete', child: Text('حذف', style: TextStyle(color: Colors.red))),
-      ],
     );
   }
 }

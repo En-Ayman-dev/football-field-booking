@@ -1,4 +1,3 @@
-
 // ignore_for_file: depend_on_referenced_packages
 
 import 'package:flutter/foundation.dart';
@@ -29,7 +28,7 @@ class BookingProvider extends ChangeNotifier {
   int? _currentFilterPitchId;
   String? _currentFilterPeriod; // 'morning' / 'evening' / null (all)
 
-  // السعر الافتراضي للساعة من جدول settings (default_hour_price_morning / default_hour_price_evening)
+  // السعر الافتراضي للساعة من جدول settings
   double? _defaultHourPrice;
   double? _defaultHourPriceMorning;
   double? _defaultHourPriceEvening;
@@ -41,7 +40,6 @@ class BookingProvider extends ChangeNotifier {
   BookingProvider(DatabaseHelper databaseHelper, {DatabaseHelper? dbHelper, SettingsNotifier? settingsNotifier})
       : _dbHelper = dbHelper ?? DatabaseHelper(),
         _settingsNotifier = settingsNotifier {
-    // Subscribe to settings updates so we can reload defaults
     _settingsNotifier?.addListener(_onSettingsUpdated);
   }
 
@@ -57,7 +55,6 @@ class BookingProvider extends ChangeNotifier {
   int? get currentFilterPitchId => _currentFilterPitchId;
   String? get currentFilterPeriod => _currentFilterPeriod;
 
-  // Getter للسعر الافتراضي حتى تستخدمه شاشة النموذج
   double? get defaultHourPrice => _defaultHourPrice;
   double? get defaultHourPriceMorning => _defaultHourPriceMorning;
   double? get defaultHourPriceEvening => _defaultHourPriceEvening;
@@ -69,7 +66,6 @@ class BookingProvider extends ChangeNotifier {
   /// تحميل قيمة default_hour_price من جدول settings (إن وجدت)
   Future<void> _loadDefaultHourPrice() async {
     try {
-      // إنشاء جدول settings إذا لم يكن موجوداً
       await _dbHelper.rawExecute('''
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
@@ -77,9 +73,9 @@ class BookingProvider extends ChangeNotifier {
         );
       ''');
 
-      // Load both morning/evening values. Keep backward compatibility with single key default_hour_price
       final rowsAll = await _dbHelper.rawQuery('SELECT key,value FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?)', ['default_hour_price', 'default_hour_price_morning', 'default_hour_price_evening', 'default_hour_price_morning_indoor', 'default_hour_price_evening_indoor', 'default_hour_price_morning_outdoor', 'default_hour_price_evening_outdoor']);
       final map = {for (var r in rowsAll) r['key']?.toString(): r['value']?.toString()};
+      
       if (map['default_hour_price_morning'] != null && map['default_hour_price_morning']!.isNotEmpty) {
         _defaultHourPriceMorning = double.tryParse(map['default_hour_price_morning']!.replaceAll(',', '.'));
       }
@@ -98,7 +94,7 @@ class BookingProvider extends ChangeNotifier {
       if (map['default_hour_price_evening_outdoor'] != null && map['default_hour_price_evening_outdoor']!.isNotEmpty) {
         _defaultHourPriceEveningOutdoor = double.tryParse(map['default_hour_price_evening_outdoor']!.replaceAll(',', '.'));
       }
-      // Backwards compatibility: single default_hour_price
+      // Backwards compatibility
       if (_defaultHourPriceMorning == null && _defaultHourPriceEvening == null && map['default_hour_price'] != null && map['default_hour_price']!.isNotEmpty) {
         final v = double.tryParse(map['default_hour_price']!.replaceAll(',', '.'));
         _defaultHourPrice = v;
@@ -110,17 +106,15 @@ class BookingProvider extends ChangeNotifier {
       if (kDebugMode) {
         print('Error loading default_hour_price: $e');
       }
-      // لا نعرض رسالة للمستخدم هنا؛ فقط نكمل بدون قيمة افتراضية
     }
   }
 
-  /// تحميل بيانات الموارد (ملاعب / كرات / مدربين) لاستخدامها في النماذج والقوائم
+  /// تحميل بيانات الموارد
   Future<void> loadData() async {
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // تحميل إعداد السعر الافتراضي قبل الموارد
       await _loadDefaultHourPrice();
 
       final pitchesRows = await _dbHelper.getAll(
@@ -156,7 +150,6 @@ class BookingProvider extends ChangeNotifier {
     reloadSettings();
   }
 
-  /// Reload only the settings (default hour prices) without reloading all resources.
   Future<void> reloadSettings() async {
     try {
       await _loadDefaultHourPrice();
@@ -181,9 +174,7 @@ class BookingProvider extends ChangeNotifier {
   }) {
     if (durationHours <= 0) return 0;
 
-    // Determine price from settings with per-type overrides taking precedence
     double fallback = 0;
-    // Check per-type per-period override first
     if (isIndoor == true) {
       final p = (period == 'evening') ? _defaultHourPriceEveningIndoor : _defaultHourPriceMorningIndoor;
       if (p != null && p > 0) {
@@ -195,17 +186,18 @@ class BookingProvider extends ChangeNotifier {
         fallback = p;
       }
     }
-    // If we don't have a per-type override, check general per-period settings
+    
     if (fallback == 0) {
       fallback = _defaultHourPriceMorning ?? _defaultHourPrice ?? 0;
       if (period != null && period == 'evening') {
         fallback = _defaultHourPriceEvening ?? fallback;
       }
     }
+    
     if (period != null && period == 'evening') {
       fallback = _defaultHourPriceEvening ?? fallback;
     }
-    // If specific indoor/outdoor per-period price exists use it
+    
     if (isIndoor == true) {
       final p = (period == 'evening') ? _defaultHourPriceEveningIndoor : _defaultHourPriceMorningIndoor;
       if (p != null && p > 0) {
@@ -217,7 +209,7 @@ class BookingProvider extends ChangeNotifier {
         fallback = p;
       }
     }
-    // If no setting found yet, use pitch's own price if provided
+
     if ((fallback <= 0) && pitchPricePerHour > 0) {
       if (kDebugMode) print('calculateTotalPrice: using pitch price $pitchPricePerHour (period=$period, isIndoor=$isIndoor)');
       return durationHours * pitchPricePerHour;
@@ -228,7 +220,6 @@ class BookingProvider extends ChangeNotifier {
     return durationHours * fallback;
   }
 
-  /// (مدة الحجز * أجر المدرب بالساعة)
   double calculateCoachWage({
     required double durationHours,
     required double coachPricePerHour,
@@ -239,14 +230,12 @@ class BookingProvider extends ChangeNotifier {
     return durationHours * coachPricePerHour;
   }
 
-  /// أجر العامل لكل حجز (من الموديل نفسه، لا يعتمد على المدة)
   double? calculateStaffWage({
     required User staffUser,
   }) {
     return staffUser.wagePerBooking;
   }
 
-  /// تحويل المبلغ إلى نص عربي بسيط (جزء صحيح فقط)
   String amountToArabicWords(double amount, {String currency = 'ريال'}) {
     final intValue = amount.round();
     if (intValue == 0) {
@@ -254,40 +243,13 @@ class BookingProvider extends ChangeNotifier {
     }
 
     final units = [
-      '',
-      'واحد',
-      'اثنان',
-      'ثلاثة',
-      'أربعة',
-      'خمسة',
-      'ستة',
-      'سبعة',
-      'ثمانية',
-      'تسعة',
+      '', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة',
     ];
     final tens = [
-      '',
-      'عشرة',
-      'عشرون',
-      'ثلاثون',
-      'أربعون',
-      'خمسون',
-      'ستون',
-      'سبعون',
-      'ثمانون',
-      'تسعون',
+      '', 'عشرة', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون',
     ];
     final teens = [
-      'عشرة',
-      'أحد عشر',
-      'اثنا عشر',
-      'ثلاثة عشر',
-      'أربعة عشر',
-      'خمسة عشر',
-      'ستة عشر',
-      'سبعة عشر',
-      'ثمانية عشر',
-      'تسعة عشر',
+      'عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر',
     ];
 
     String convertBelowHundred(int n) {
@@ -359,9 +321,8 @@ class BookingProvider extends ChangeNotifier {
     return '$words $currency';
   }
 
-
   // =========================
-  //      إضافة حجز (Snapshot)
+  //      إضافة حجز
   // =========================
 
   Future<int?> addBooking({
@@ -384,7 +345,21 @@ class BookingProvider extends ChangeNotifier {
         ),
       );
 
-      // سعر الساعة الفعلي المستخدم (snapshot). calculateTotalPrice will use pitch price if set, otherwise fall back to settings depending on period
+      // --- التحقق من التوفر باستخدام دالة DatabaseHelper ---
+      // ملاحظة: نقوم بتحويل التواريخ لنصوص لأن الدالة تتوقع String في SQL
+      final isAvailable = await _dbHelper.isPitchAvailable(
+        pitchId: pitch.id!,
+        startTime: startDateTime.toIso8601String(),
+        endTime: endDateTime.toIso8601String(),
+      );
+
+      if (!isAvailable) {
+        _errorMessage = 'هذا الملعب محجوز بالفعل في هذه الفترة الزمنية.';
+        notifyListeners();
+        return null;
+      }
+      // ----------------------------------------------------
+
       final totalPrice = calculateTotalPrice(
         durationHours: durationHours,
         pitchPricePerHour: pitch.pricePerHour ?? 0,
@@ -424,7 +399,6 @@ class BookingProvider extends ChangeNotifier {
       );
 
       if (kDebugMode) print('DB inserting booking -> ${booking.toMap()}');
-      // Insert inside a transaction to avoid lock/errors during concurrent ops
       final db = await _dbHelper.database;
       final id = await db.transaction<int>((txn) async {
         final insertedId = await txn.insert(
@@ -466,7 +440,21 @@ class BookingProvider extends ChangeNotifier {
         ),
       );
 
-      // نفس منطق createBooking: نستخدم سعر الملعب أو الافتراضي
+      // --- التحقق من التوفر عند التحديث (مع استثناء الحجز الحالي) ---
+      final isAvailable = await _dbHelper.isPitchAvailable(
+        pitchId: pitch.id!,
+        startTime: startDateTime.toIso8601String(),
+        endTime: endDateTime.toIso8601String(),
+        excludeBookingId: existingBooking.id,
+      );
+
+      if (!isAvailable) {
+        _errorMessage = 'هذا الملعب محجوز بالفعل في هذه الفترة الزمنية.';
+        notifyListeners();
+        return false;
+      }
+      // -----------------------------------------------------------
+
       final totalPrice = calculateTotalPrice(
         durationHours: durationHours,
         pitchPricePerHour: pitch.pricePerHour ?? 0,
@@ -508,7 +496,6 @@ class BookingProvider extends ChangeNotifier {
         whereArgs: [existingBooking.id],
       );
 
-      // تحديث القائمة الحالية في الواجهة إن وجدت
       final index = _bookings.indexWhere((b) => b.id == existingBooking.id);
       if (index != -1) {
         _bookings[index] = updatedBooking;
@@ -539,13 +526,11 @@ class BookingProvider extends ChangeNotifier {
     _isLoading = true;
     _errorMessage = null;
 
-    // تحديث الفلاتر الحالية
     _currentFilterDate = date ?? _currentFilterDate ?? DateTime.now();
     if (keepExistingFiltersIfNull) {
       _currentFilterPitchId = pitchId ?? _currentFilterPitchId;
       _currentFilterPeriod = period ?? _currentFilterPeriod;
     } else {
-      // treat provided nulls as an explicit request to clear the filter
       _currentFilterPitchId = pitchId;
       _currentFilterPeriod = period;
     }
@@ -580,7 +565,6 @@ class BookingProvider extends ChangeNotifier {
 
       var loaded = rows.map((e) => Booking.fromMap(e)).toList();
 
-      // فلترة الفترة (صباحي/مسائي) في الذاكرة
       if (_currentFilterPeriod != null &&
           _currentFilterPeriod != 'all') {
         loaded = loaded.where((b) {
@@ -606,18 +590,18 @@ class BookingProvider extends ChangeNotifier {
     }
   }
 
-  /// إعادة تحميل الحجوزات باستخدام نفس الفلاتر الحالية
   Future<void> refreshBookings() async {
     await fetchBookings();
   }
 
-  /// تحديث حالة الحجز (مثلاً من pending إلى paid)
   Future<void> updateBookingStatus(int id, String status) async {
     try {
       await _dbHelper.update(
         DatabaseHelper.tableBookings,
         {
           'status': status,
+          'is_dirty': 1, // تم إضافة is_dirty ليتم مزامنة تغيير الحالة
+          'updated_at': DateTime.now().toIso8601String(),
         },
         where: 'id = ?',
         whereArgs: [id],
@@ -637,7 +621,6 @@ class BookingProvider extends ChangeNotifier {
     }
   }
 
-  /// حذف حجز (من المفترض أن يتم استدعاؤها من واجهة المدير فقط)
   Future<void> deleteBooking(int id) async {
     try {
       await _dbHelper.delete(
