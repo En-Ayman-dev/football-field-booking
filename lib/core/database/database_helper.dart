@@ -17,8 +17,8 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _databaseName = 'arena_manager.db';
-  // --- تم رفع الإصدار لتطبيق التعديلات الجديدة ---
-  static const int _databaseVersion = 6;
+  // --- تم رفع الإصدار لتطبيق التعديلات الجديدة (is_deposited) ---
+  static const int _databaseVersion = 7;
 
   // أسماء الجداول
   static const String tableUsers = 'users';
@@ -127,7 +127,7 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول الحجوزات - تم إضافة firebase_id و deleted_at
+    // جدول الحجوزات - تم إضافة is_deposited
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableBookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,6 +147,7 @@ class DatabaseHelper {
         created_by_user_id INTEGER NOT NULL,
         staff_wage REAL,
         coach_wage REAL,
+        is_deposited INTEGER NOT NULL DEFAULT 0,
         is_dirty INTEGER NOT NULL DEFAULT 0,
         deleted_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -328,6 +329,21 @@ class DatabaseHelper {
           }
         }
       }
+
+      // --- التحديث الجديد (الإصدار 7): إضافة is_deposited ---
+      if (newVersion >= 7) {
+        try {
+          final bookingInfo = await db.rawQuery('PRAGMA table_info($tableBookings)');
+          final hasIsDeposited = bookingInfo.any((col) => (col['name'] as String?) == 'is_deposited');
+          
+          if (!hasIsDeposited) {
+            // نضيف العمود ونعطي قيمة افتراضية 0 (غير مورد)
+            await db.execute('ALTER TABLE $tableBookings ADD COLUMN is_deposited INTEGER NOT NULL DEFAULT 0');
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error upgrading booking table for is_deposited: $e');
+        }
+      }
     }
   }
 
@@ -461,6 +477,55 @@ class DatabaseHelper {
     ));
 
     return (count ?? 0) == 0;
+  }
+
+  // --- دوال خاصة بصفحة التوريد (الجديدة) ---
+
+  /// جلب الحجوزات الخاصة بموظف معين، والتي هي (مدفوعة) و (غير موردة بعد)
+  Future<List<Map<String, dynamic>>> getWorkerPaidUndepositedBookings(int userId) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT b.*, p.name as pitch_name 
+      FROM $tableBookings b
+      JOIN $tablePitches p ON b.pitch_id = p.id
+      WHERE b.created_by_user_id = ? 
+        AND b.status = 'paid' 
+        AND b.is_deposited = 0
+        AND (b.deleted_at IS NULL)
+      ORDER BY b.start_time DESC
+    ''', [userId]);
+  }
+
+  /// جلب عدد الحجوزات "المعلقة" الخاصة بالموظف (لغرض الإشعار)
+  Future<int> getWorkerPendingBookingsCount(int userId) async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT COUNT(*) as count 
+      FROM $tableBookings 
+      WHERE created_by_user_id = ? 
+        AND status = 'pending'
+        AND (deleted_at IS NULL)
+    ''', [userId]);
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// تحديث مجموعة من الحجوزات لتصبح "موردة" (is_deposited = 1)
+  Future<void> markBookingsAsDeposited(List<int> bookingIds) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (var id in bookingIds) {
+        await txn.update(
+          tableBookings,
+          {
+            'is_deposited': 1,
+            'is_dirty': 1,
+            'updated_at': DateTime.now().toIso8601String(),
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+    });
   }
 
   // --- تهيئة المستخدم المسؤول ---
