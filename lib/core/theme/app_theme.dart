@@ -1,159 +1,307 @@
 import 'package:flutter/material.dart';
-// google_fonts removed to prevent runtime network fetching of fonts
+import 'package:flutter/services.dart';
 
 class AppTheme {
-  // Colors
-  static const Color primary = Color(0xFF00695C); // Deep Emerald Green
-  static const Color secondary = Color(0xFFFFC107); // Golden Amber
-  static const Color success = Color(0xFF2E7D32); // Green success
-  static const Color warning = Color(0xFFFFC107); // Amber warning
-  static const Color darkSurface = Color(0xFF102027); // Gunmetal Blue
-  static const Color lightCard = Color(0xFFFFFFFF); // Pure White
-  static const Color darkCard = Color(0xFF263238); // Charcoal
+  // --- لوحة الألوان الأساسية ---
+  static const Color primary = Color(0xFF2E7D32); // الأخضر الأساسي
+  static const Color secondary = Color(0xFFFFA000); // البرتقالي الثانوي
 
-  /// Common text theme using Cairo font (Arabic friendly)
-  static TextTheme _textTheme(TextTheme base) {
-    // Use local/system font family 'Cairo' if available; otherwise fallback to system fonts
-    const String family = 'Cairo';
-    return base.copyWith(
-      headlineLarge: base.headlineLarge?.copyWith(fontFamily: family, fontSize: 28, fontWeight: FontWeight.bold),
-      headlineMedium: base.headlineMedium?.copyWith(fontFamily: family, fontSize: 22, fontWeight: FontWeight.w700),
-      titleLarge: base.titleLarge?.copyWith(fontFamily: family, fontSize: 18, fontWeight: FontWeight.w700),
-      bodyLarge: base.bodyLarge?.copyWith(fontFamily: family, fontSize: 16, fontWeight: FontWeight.w500),
-      bodyMedium: base.bodyMedium?.copyWith(fontFamily: family, fontSize: 14, fontWeight: FontWeight.w400),
-      labelLarge: base.labelLarge?.copyWith(fontFamily: family, fontSize: 14, fontWeight: FontWeight.w600),
-      labelSmall: base.labelSmall?.copyWith(fontFamily: family, fontSize: 12, fontWeight: FontWeight.w500),
-    );
+  // --- الألوان الوظيفية ---
+  static const Color success = Color(0xFF2E7D32);
+  static const Color warning = Color(0xFFFFA000);
+  static const Color error = Color(0xFFD32F2F);
+  static const Color darkSurface = Color(0xFF1E1E1E);
+  static const Color lightCard = Color(0xFFFFFFFF);
+  static const Color darkCard = Color(0xFF2C2C2C);
+
+  // --- الخلفيات ---
+  static const Color _backgroundLight = Color(0xFFF5F7FA);
+  static const Color _backgroundDark = Color(0xFF121212);
+
+  // --- إعدادات الخطوط ---
+  static const String _fontFamily = 'Cairo';
+
+  static TextTheme _buildTextTheme(TextTheme base, Color primaryColor) {
+    return base
+        .copyWith(
+          displayLarge: base.displayLarge?.copyWith(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.bold,
+            fontSize: 32,
+            color: primaryColor,
+          ),
+          headlineMedium: base.headlineMedium?.copyWith(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+          ),
+          titleLarge: base.titleLarge?.copyWith(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+          bodyLarge: base.bodyLarge?.copyWith(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.w500,
+            fontSize: 16,
+          ),
+          bodyMedium: base.bodyMedium?.copyWith(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.w400,
+            fontSize: 14,
+          ),
+          labelLarge: base.labelLarge?.copyWith(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        )
+        .apply(fontFamily: _fontFamily);
   }
 
-  static final OutlineInputBorder _outlineBorder = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(15),
-    borderSide: BorderSide.none,
-  );
+  static final BorderRadius _defaultRadius = BorderRadius.circular(16);
+  static final BorderRadius _buttonRadius = BorderRadius.circular(12);
 
-  static final OutlineInputBorder _focusedOutlineBorder = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(15),
-    borderSide: const BorderSide(color: primary, width: 2),
-  );
-
-  static InputDecorationTheme _inputDecorationTheme(Color fillColor) => InputDecorationTheme(
-        filled: true,
-        fillColor: fillColor,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-        border: _outlineBorder,
-        enabledBorder: _outlineBorder,
-        disabledBorder: _outlineBorder,
-        focusedBorder: _focusedOutlineBorder,
-        errorBorder: _outlineBorder.copyWith(borderSide: const BorderSide(color: Colors.red)),
-        focusedErrorBorder: _focusedOutlineBorder.copyWith(borderSide: const BorderSide(color: Colors.red)),
-        labelStyle: const TextStyle(height: 1.2),
-      );
-
-  static final CardThemeData _cardTheme = CardThemeData(
-    elevation: 4,
-    color: lightCard,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-  );
-
-  static final CardThemeData _cardThemeDark = CardThemeData(
-    elevation: 4,
-    color: darkCard,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-  );
-
-  static final ElevatedButtonThemeData _elevatedButtonTheme = ElevatedButtonThemeData(
-    style: ButtonStyle(
-      // FIXED: Use Size(0, 54) instead of Size.fromHeight(54) which forces infinite width
-      minimumSize: WidgetStateProperty.all(const Size(0, 54)), 
-      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
-      shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-      elevation: WidgetStateProperty.all(8),
-      shadowColor: WidgetStateProperty.all(primary.withOpacity(0.24)),
-      backgroundColor: WidgetStateProperty.resolveWith((states) => primary),
-      foregroundColor: WidgetStateProperty.all(Colors.white),
-    ),
-  );
-
-  static final OutlinedButtonThemeData _outlinedButtonTheme = OutlinedButtonThemeData(
-    style: ButtonStyle(
-      minimumSize: WidgetStateProperty.all(const Size(0, 54)), // Apply same fix here
-      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 18)),
-      shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-    ),
-  );
-
-  static final FloatingActionButtonThemeData _fabTheme = FloatingActionButtonThemeData(
-    backgroundColor: primary,
-    elevation: 6,
-  );
-
+  // --- 1. الثيم النهاري (Light Theme) ---
   static ThemeData get lightTheme {
-    final base = ThemeData.light();
-    final colorScheme = ColorScheme(
-      brightness: Brightness.light,
+    final ColorScheme colorScheme = const ColorScheme.light(
       primary: primary,
-      onPrimary: Colors.white,
       secondary: secondary,
-      onSecondary: Colors.black,
-      error: Colors.red,
-      onError: Colors.white,
       surface: lightCard,
-      onSurface: Colors.black,
+      onPrimary: Colors.white,
+      onSecondary: Colors.black,
+      onSurface: Colors.black87,
+      error: error,
     );
 
-    return base.copyWith(
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
       colorScheme: colorScheme,
-      primaryColor: primary,
-      scaffoldBackgroundColor: colorScheme.surface,
-      appBarTheme: AppBarTheme(
+      fontFamily: _fontFamily,
+      scaffoldBackgroundColor: _backgroundLight,
+
+      appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: colorScheme.onSurface,
-        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        titleTextStyle: TextStyle(
+          fontFamily: _fontFamily,
+          color: Colors.black87,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        iconTheme: IconThemeData(color: Colors.black87),
       ),
-      cardTheme: _cardTheme,
-      inputDecorationTheme: _inputDecorationTheme(Colors.grey[100]!),
-      elevatedButtonTheme: _elevatedButtonTheme,
-      outlinedButtonTheme: _outlinedButtonTheme,
-      textTheme: _textTheme(base.textTheme),
-      iconTheme: const IconThemeData(color: primary),
-      floatingActionButtonTheme: _fabTheme,
+
+      // ✅ تم التصحيح: استخدام CardThemeData
+      cardTheme: CardThemeData(
+        color: lightCard,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: _defaultRadius,
+          // ✅ تم التصحيح: استخدام withValues(alpha: ...)
+          side: BorderSide(color: Colors.grey.withValues(alpha: 0.2), width: 1),
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        clipBehavior: Clip.antiAlias,
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: _defaultRadius,
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: _defaultRadius,
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: _defaultRadius,
+          borderSide: const BorderSide(color: primary, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: _defaultRadius,
+          borderSide: const BorderSide(color: error, width: 1),
+        ),
+        labelStyle: const TextStyle(
+          color: Colors.grey,
+          fontFamily: _fontFamily,
+        ),
+        hintStyle: const TextStyle(color: Colors.grey, fontFamily: _fontFamily),
+      ),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          elevation: 4,
+          // ✅ تم التصحيح: withValues
+          shadowColor: primary.withValues(alpha: 0.4),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: _buttonRadius),
+          textStyle: const TextStyle(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primary,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          side: const BorderSide(color: primary, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: _buttonRadius),
+          textStyle: const TextStyle(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ),
+
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: lightCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+
+      // ✅ تم التصحيح: استخدام DialogThemeData
+      dialogTheme: DialogThemeData(
+        backgroundColor: lightCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: const TextStyle(
+          fontFamily: _fontFamily,
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.black87,
+        ),
+      ),
+
+      textTheme: _buildTextTheme(ThemeData.light().textTheme, primary),
     );
   }
 
+  // --- 2. الثيم الليلي (Dark Theme) ---
   static ThemeData get darkTheme {
-    final base = ThemeData.dark();
-    final colorScheme = ColorScheme(
-      brightness: Brightness.dark,
+    final ColorScheme colorScheme = const ColorScheme.dark(
       primary: primary,
-      onPrimary: Colors.white,
       secondary: secondary,
+      surface: darkSurface,
+      onPrimary: Colors.white,
       onSecondary: Colors.black,
-      error: Colors.red.shade400,
-      onError: Colors.white,
-      surface: darkCard,
-      onSurface: Colors.white,
+      onSurface: Colors.white, // ✅ التأكيد على أن النصوص على السطح بيضاء
+      error: Color(0xFFEF9A9A),
     );
 
-    return base.copyWith(
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
       colorScheme: colorScheme,
-      primaryColor: primary,
-      scaffoldBackgroundColor: colorScheme.surface,
-      appBarTheme: AppBarTheme(
+      fontFamily: _fontFamily,
+      scaffoldBackgroundColor: _backgroundDark,
+
+      appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: colorScheme.onSurface,
-        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        titleTextStyle: TextStyle(
+          fontFamily: _fontFamily,
+          color: Colors.white, // ✅ نص أبيض
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        iconTheme: IconThemeData(color: Colors.white),
       ),
-      cardTheme: _cardThemeDark,
-      inputDecorationTheme: _inputDecorationTheme(Colors.grey[800]!),
-      elevatedButtonTheme: _elevatedButtonTheme,
-      outlinedButtonTheme: _outlinedButtonTheme,
-      textTheme: _textTheme(base.textTheme),
-      iconTheme: IconThemeData(color: colorScheme.onPrimary),
-      floatingActionButtonTheme: _fabTheme,
+
+      // ✅ تم التصحيح: CardThemeData
+      cardTheme: CardThemeData(
+        color: darkCard,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: _defaultRadius,
+          // ✅ تم التصحيح: withValues
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF2C2C2C),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: _defaultRadius,
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: _defaultRadius,
+          borderSide: const BorderSide(color: primary, width: 1.5),
+        ),
+        labelStyle: const TextStyle(
+          color: Colors.grey,
+          fontFamily: _fontFamily,
+        ),
+      ),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          elevation: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: _buttonRadius),
+          textStyle: const TextStyle(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ),
+
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: darkSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+
+      // ✅ تم التصحيح: DialogThemeData
+      dialogTheme: DialogThemeData(
+        backgroundColor: darkSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: const TextStyle(
+          fontFamily: _fontFamily,
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.white, // ✅ عنوان الديالوج أبيض
+        ),
+      ),
+
+      // ✅ تعديل هام: فرض اللون الأبيض على جميع النصوص في الوضع الليلي
+      textTheme: _buildTextTheme(
+        ThemeData.dark().textTheme,
+        Colors.white,
+      ).apply(bodyColor: Colors.white, displayColor: Colors.white),
     );
   }
 }

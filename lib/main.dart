@@ -12,6 +12,7 @@ import 'core/session/session_manager.dart';
 import 'core/settings/settings_notifier.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/responsive_helper.dart';
+import 'features/splash/splash_screen.dart';
 import 'firebase_options.dart'; // ملف الإعدادات المولد من CLI
 import 'providers/auth_provider.dart';
 import 'features/deposits/presentation/providers/deposit_provider.dart';
@@ -52,7 +53,7 @@ class _BootstrapAppState extends State<_BootstrapApp> {
     try {
       await di.init();
       await SessionManager.instance.init();
-      
+
       // --- تهيئة Firebase (جديد) ---
       try {
         await Firebase.initializeApp(
@@ -78,6 +79,8 @@ class _BootstrapAppState extends State<_BootstrapApp> {
       future: _initFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
+          // يمكن هنا استخدام شاشة تحميل مؤقتة بسيطة جداً
+          // لأن Native Splash ستغطي هذه المرحلة غالباً
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             home: const Scaffold(
@@ -154,8 +157,10 @@ class _ArenaManagerAppState extends State<ArenaManagerApp> {
         ResponsiveHelper().init(context);
         return child!;
       },
-      initialRoute: '/login',
+      // --- التعديل هنا: البداية من شاشة الترحيب ---
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => const SplashScreen(), // المسار الجديد
         '/login': (context) => const auth.LoginScreen(),
         '/dashboard': (context) => const dashboard.DashboardScreen(),
         '/bookings': (context) => const bookings.BookingListScreenWarp(),

@@ -59,6 +59,25 @@ dependencies:
   firebase_core: ^4.3.0
   cloud_firestore: ^6.1.1
   firebase_auth: ^6.1.3
+  flutter_native_splash: ^2.4.7
+  flutter_launcher_icons: ^0.14.4
+# --- إعدادات الشاشة الترحيبية (Native Splash) ---
+flutter_native_splash:
+  color: "#FFFFFF" # لون الخلفية (أبيض)
+  image: assets/images/1.png # صورة الشعار
+  branding: assets/images/1.png # (اختياري) يظهر أسفل الشاشة
+  android_12:
+    image: assets/images/1.png
+    icon_background_color: "#FFFFFF"
+# --- إعدادات أيقونة التطبيق (App Icon) ---
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/2.png" # الصورة الجديدة للأيقونة
+  min_sdk_android: 21
+  # إعدادات اختيارية لتحسين مظهر الأيقونة على أندرويد الحديث
+  adaptive_icon_background: "#FFFFFF" 
+  adaptive_icon_foreground: "assets/images/2.png"
 
 dev_dependencies:
   flutter_test:
@@ -90,6 +109,8 @@ flutter:
   #   - images/a_dot_ham.jpeg
   assets:
     - assets/images/logo.jpg
+    - assets/images/1.png
+    - assets/images/2.png 
   fonts:
     - family: Cairo
       fonts:
