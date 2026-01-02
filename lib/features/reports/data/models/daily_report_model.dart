@@ -4,8 +4,16 @@ class DailyReport {
   final DateTime date;
   // خريطة لتخزين عدد الساعات لكل ملعب (ID الملعب -> عدد الساعات)
   final Map<int, double> pitchHours;
-  final double totalHours;
-  final double totalAmount;
+
+  // --- التعديلات الجديدة: التفصيل (صباحي / مسائي) ---
+  final double totalMorningHours;
+  final double totalEveningHours;
+  final double totalMorningAmount;
+  final double totalEveningAmount;
+  // ---------------------------------------------------
+
+  final double totalHours; // إجمالي الساعات (ص + م)
+  final double totalAmount; // إجمالي المبلغ (ص + م)
   final double totalStaffWages;
   final double totalCoachWages;
   final double depositedAmount; // المبلغ المورد
@@ -15,6 +23,12 @@ class DailyReport {
   DailyReport({
     required this.date,
     required this.pitchHours,
+    // الحقول الجديدة مطلوبة
+    required this.totalMorningHours,
+    required this.totalEveningHours,
+    required this.totalMorningAmount,
+    required this.totalEveningAmount,
+    // الحقول السابقة
     required this.totalHours,
     required this.totalAmount,
     required this.totalStaffWages,

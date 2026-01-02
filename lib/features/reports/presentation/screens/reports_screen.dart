@@ -350,7 +350,8 @@ class _ReportsScreenState extends State<ReportsScreen>
           headingRowColor: WidgetStateProperty.all(
             Theme.of(context).primaryColor.withOpacity(0.1),
           ),
-          columnSpacing: 20.sp,
+          columnSpacing:
+              15.sp, // تقليل المسافات قليلاً لاستيعاب الأعمدة الجديدة
           horizontalMargin: 10.sp,
           columns: _buildColumns(pitchProv.pitches),
           rows: reports
@@ -561,9 +562,16 @@ class _ReportsScreenState extends State<ReportsScreen>
     for (var pitch in pitches) {
       cols.add(DataColumn(label: _colText(pitch.name)));
     }
+
+    // --- التعديلات: الأعمدة الجديدة المفصلة ---
     cols.addAll([
-      DataColumn(label: _colText('ساعات')),
-      DataColumn(label: _colText('إجمالي')),
+      DataColumn(label: _colText('ساعات\n(ص)')),
+      DataColumn(label: _colText('ساعات\n(م)')),
+
+      DataColumn(label: _colText('إجمالي\n(ص)')),
+      DataColumn(label: _colText('إجمالي\n(م)')),
+      DataColumn(label: _colText('الإجمالي\nالكلي')),
+
       DataColumn(label: _colText('أجور\nع')),
       DataColumn(label: _colText('أجور\nم')),
       DataColumn(label: _colText('مورد')),
@@ -571,6 +579,8 @@ class _ReportsScreenState extends State<ReportsScreen>
       DataColumn(label: _colText('مسدد')),
       DataColumn(label: _colText('ملاحظات')),
     ]);
+    // ------------------------------------------
+
     return cols;
   }
 
@@ -594,9 +604,26 @@ class _ReportsScreenState extends State<ReportsScreen>
         ),
       );
     }
+
+    // --- التعديلات: تعبئة الخلايا المفصلة ---
     cells.addAll([
-      DataCell(Text(DailyReport.formatDecimalHours(report.totalHours))),
-      DataCell(Text(report.totalAmount.toStringAsFixed(0))),
+      // ساعات صباحي ومسائي
+      DataCell(Text(DailyReport.formatDecimalHours(report.totalMorningHours))),
+      DataCell(Text(DailyReport.formatDecimalHours(report.totalEveningHours))),
+
+      // إجماليات المبالغ (صباحي، مسائي، كلي)
+      DataCell(Text(report.totalMorningAmount.toStringAsFixed(0))),
+      DataCell(Text(report.totalEveningAmount.toStringAsFixed(0))),
+      DataCell(
+        Text(
+          report.totalAmount.toStringAsFixed(0),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.blue.shade800,
+          ),
+        ),
+      ),
+
       DataCell(Text(report.totalStaffWages.toStringAsFixed(0))),
       DataCell(Text(report.totalCoachWages.toStringAsFixed(0))),
       DataCell(
@@ -627,6 +654,8 @@ class _ReportsScreenState extends State<ReportsScreen>
         ),
       ),
     ]);
+    // ----------------------------------------
+
     return DataRow(cells: cells);
   }
 

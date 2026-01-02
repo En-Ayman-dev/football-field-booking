@@ -150,7 +150,7 @@ class ReportsProvider with ChangeNotifier {
     }
   }
 
-  // --- (الدالة القديمة لمعالجة التقرير اليومي - بقيت كما هي) ---
+  // --- (الدالة المعدلة لمعالجة التقرير اليومي) ---
   List<DailyReport> _processReports(
     DateTime start,
     DateTime end,
@@ -177,6 +177,14 @@ class ReportsProvider with ChangeNotifier {
       }).toList();
 
       Map<int, double> pitchHoursMap = {};
+
+      // --- المتغيرات الجديدة للتفصيل ---
+      double totalMorningHours = 0;
+      double totalEveningHours = 0;
+      double totalMorningAmount = 0;
+      double totalEveningAmount = 0;
+      // ---------------------------------
+
       double totalDayHours = 0;
       double totalDayAmount = 0;
       double totalStaffWages = 0;
@@ -190,11 +198,34 @@ class ReportsProvider with ChangeNotifier {
         final pitchId = b['pitch_id'] as int;
 
         final double duration = endTime.difference(startTime).inMinutes / 60.0;
+        final double price = (b['total_price'] as num?)?.toDouble() ?? 0;
+        final String? period = b['period'] as String?; // جلب الفترة
 
+        // تجميع الساعات لكل ملعب
         pitchHoursMap[pitchId] = (pitchHoursMap[pitchId] ?? 0) + duration;
-        totalDayHours += duration;
 
-        totalDayAmount += (b['total_price'] as num?)?.toDouble() ?? 0;
+        // --- المنطق الجديد: التوزيع حسب الفترة ---
+        if (period == 'morning') {
+          totalMorningHours += duration;
+          totalMorningAmount += price;
+        } else if (period == 'evening') {
+          totalEveningHours += duration;
+          totalEveningAmount += price;
+        } else {
+          // في حال لم تحدد فترة (بيانات قديمة)، نعتبرها افتراضياً مع المسائي أو الصباحي حسب الوقت
+          // أو نضيفها للإجمالي فقط. هنا سنضيفها حسب ساعة البدء كحل ذكي
+          if (startTime.hour < 12) {
+            totalMorningHours += duration;
+            totalMorningAmount += price;
+          } else {
+            totalEveningHours += duration;
+            totalEveningAmount += price;
+          }
+        }
+        // ----------------------------------------
+
+        totalDayHours += duration;
+        totalDayAmount += price;
         totalStaffWages += (b['staff_wage'] as num?)?.toDouble() ?? 0;
         totalCoachWages += (b['coach_wage'] as num?)?.toDouble() ?? 0;
 
@@ -213,6 +244,12 @@ class ReportsProvider with ChangeNotifier {
         DailyReport(
           date: currentDate,
           pitchHours: pitchHoursMap,
+          // تمرير القيم المفصلة الجديدة
+          totalMorningHours: totalMorningHours,
+          totalEveningHours: totalEveningHours,
+          totalMorningAmount: totalMorningAmount,
+          totalEveningAmount: totalEveningAmount,
+          // القيم الإجمالية
           totalHours: totalDayHours,
           totalAmount: totalDayAmount,
           totalStaffWages: totalStaffWages,

@@ -35,7 +35,7 @@ class ReportPdfHelper {
   }
 
   // ==========================================================
-  // 1. التقرير العام (اليومي) - القديم مع تحسينات بسيطة
+  // 1. التقرير العام (اليومي) - تم تحديثه للهيكلية الجديدة
   // ==========================================================
 
   static Future<void> generateAndPrintReport({
@@ -316,11 +316,11 @@ class ReportPdfHelper {
   }
 
   // ==========================================================
-  // Helpers (مكونات مشتركة - لم يتم تغيير اللوجو أو الهيدر)
+  // Helpers (مكونات مشتركة)
   // ==========================================================
 
   static pw.Widget _buildHeader(
-    String title, // تم تغيير النص ليكون ديناميكياً حسب التقرير
+    String title,
     String start,
     String end,
     pw.Font boldFont,
@@ -330,7 +330,7 @@ class ReportPdfHelper {
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         pw.Text(
-          title, // استخدام العنوان المتغير
+          title,
           style: pw.TextStyle(
             font: boldFont,
             fontSize: 18,
@@ -340,7 +340,6 @@ class ReportPdfHelper {
         ),
 
         pw.SizedBox(height: 2),
-        // حاوية الشعار (كما كانت تماماً)
         pw.Container(
           height: 100,
           width: 350,
@@ -371,9 +370,13 @@ class ReportPdfHelper {
     for (var p in pitches) {
       headers.add(p.name);
     }
+    // --- تعديل العناوين للأعمدة الجديدة ---
     headers.addAll([
-      'مجموع\nالساعات',
-      'الإجمالي',
+      'ساعات\n(ص)',
+      'ساعات\n(م)',
+      'إجمالي\n(ص)',
+      'إجمالي\n(م)',
+      'الإجمالي\nالكلي',
       'أجور\nعمال',
       'أجور\nمدربين',
       'المورد',
@@ -382,17 +385,20 @@ class ReportPdfHelper {
       'ملاحظات',
     ]);
 
+    // بما أننا نستخدم RTL، يجب عكس الترتيب ليتوافق مع الجدول العربي
+    // ولكن في PDF Helper، اتجاه Column هو RTL، لذا قد لا نحتاج لعكس القوائم يدوياً إذا كانت TableHelper تدعم ذلك
+    // لكن للأمان وللتوافق مع الكود السابق، سنعكس القائمة لتظهر الأعمدة من اليمين لليسار
     final reversedHeaders = headers.reversed.toList();
 
     return pw.TableHelper.fromTextArray(
       headers: reversedHeaders,
       headerStyle: pw.TextStyle(
         font: boldFont,
-        fontSize: 8,
+        fontSize: 7, // تصغير الخط قليلاً لاستيعاب الأعمدة الكثيرة
         color: PdfColors.white,
       ),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey700),
-      cellStyle: pw.TextStyle(font: font, fontSize: 7.5),
+      cellStyle: pw.TextStyle(font: font, fontSize: 6.5), // تصغير الخط للخلايا
       cellAlignment: pw.Alignment.center,
       border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey400),
       data: reports.map((r) {
@@ -400,21 +406,25 @@ class ReportPdfHelper {
         for (var p in pitches) {
           row.add(DailyReport.formatDecimalHours(r.pitchHours[p.id] ?? 0.0));
         }
+        // --- إضافة البيانات الجديدة ---
         row.addAll([
-          DailyReport.formatDecimalHours(r.totalHours),
-          r.totalAmount.toStringAsFixed(2),
-          r.totalStaffWages.toStringAsFixed(2),
-          r.totalCoachWages.toStringAsFixed(2),
-          r.depositedAmount.toStringAsFixed(2),
-          r.remainingAmount.toStringAsFixed(2),
+          DailyReport.formatDecimalHours(r.totalMorningHours),
+          DailyReport.formatDecimalHours(r.totalEveningHours),
+          r.totalMorningAmount.toStringAsFixed(0), // بدون كسور لتوفير المساحة
+          r.totalEveningAmount.toStringAsFixed(0),
+          r.totalAmount.toStringAsFixed(0),
+          r.totalStaffWages.toStringAsFixed(0),
+          r.totalCoachWages.toStringAsFixed(0),
+          r.depositedAmount.toStringAsFixed(0),
+          r.remainingAmount.toStringAsFixed(0),
           r.paidBookingsCount.toString(),
           r.notes.isEmpty ? '-' : r.notes,
         ]);
         return row.reversed.toList();
       }).toList(),
       columnWidths: {
-        reversedHeaders.length - 1: const pw.FixedColumnWidth(60),
-        0: const pw.FlexColumnWidth(2),
+        reversedHeaders.length - 1: const pw.FixedColumnWidth(50), // الملاحظات
+        0: const pw.FlexColumnWidth(2), // التاريخ
       },
     );
   }
