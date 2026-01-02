@@ -53,6 +53,7 @@ class _WorkerDepositsScreenState extends State<WorkerDepositsScreen>
     setState(() {
       if (selected == true) {
         _selectedBookingIds.add(booking.id!);
+        // ملاحظة: totalPrice هنا هو المبلغ الصافي القادم من الـ Provider
         _totalSelectedAmount += (booking.totalPrice ?? 0);
       } else {
         _selectedBookingIds.remove(booking.id!);
@@ -261,6 +262,13 @@ class _WorkerDepositsScreenState extends State<WorkerDepositsScreen>
                               'ar',
                             );
 
+                            // --- الحسابات للعرض فقط ---
+                            // booking.totalPrice القادم من الـ Provider هو الصافي بالفعل
+                            final double netPrice = booking.totalPrice ?? 0.0;
+                            final double coachWage = booking.coachWage ?? 0.0;
+                            // نعيد بناء السعر الأصلي لغرض العرض
+                            final double originalPrice = netPrice + coachWage;
+
                             return CheckboxListTile(
                               value: isSelected,
                               activeColor: Colors.green,
@@ -279,22 +287,67 @@ class _WorkerDepositsScreenState extends State<WorkerDepositsScreen>
                                       fontSize: 13.sp,
                                     ),
                                   ),
-                                  Text(
-                                    '${booking.totalPrice?.toStringAsFixed(0)} ريال',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green,
-                                      fontSize: 13.sp,
-                                    ),
+                                  // عرض المبلغ الصافي للتوريد
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '${netPrice.toStringAsFixed(0)} ريال',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                          fontSize: 13.sp,
+                                        ),
+                                      ),
+                                      if (coachWage > 0)
+                                        Text(
+                                          'صافي التوريد',
+                                          style: TextStyle(
+                                            fontSize: 9.sp,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),
-                              subtitle: Text(
-                                '${dateFormat.format(booking.startTime)} - الملعب ${booking.pitchId}',
-                                style: TextStyle(
-                                  fontSize: 11.sp,
-                                  color: Colors.grey[700],
-                                ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${dateFormat.format(booking.startTime)} - الملعب ${booking.pitchId}',
+                                    style: TextStyle(
+                                      fontSize: 11.sp,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                  // --- عرض تفاصيل الخصم إذا وجد مدرب ---
+                                  if (coachWage > 0) ...[
+                                    SizedBox(height: 0.5.h),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'إجمالي: ${originalPrice.toStringAsFixed(0)}',
+                                          style: TextStyle(
+                                            fontSize: 10.sp,
+                                            color: Colors.grey[600],
+                                            decoration:
+                                                TextDecoration.lineThrough,
+                                          ),
+                                        ),
+                                        SizedBox(width: 2.w),
+                                        Text(
+                                          '- المدرب: ${coachWage.toStringAsFixed(0)}',
+                                          style: TextStyle(
+                                            fontSize: 10.sp,
+                                            color: Colors.red,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
                               ),
                               onChanged: (val) =>
                                   _toggleBookingSelection(booking, val),

@@ -37,9 +37,12 @@ class BookingProvider extends ChangeNotifier {
   double? _defaultHourPriceMorningOutdoor;
   double? _defaultHourPriceEveningOutdoor;
 
-  BookingProvider(DatabaseHelper databaseHelper, {DatabaseHelper? dbHelper, SettingsNotifier? settingsNotifier})
-      : _dbHelper = dbHelper ?? DatabaseHelper(),
-        _settingsNotifier = settingsNotifier {
+  BookingProvider(
+    DatabaseHelper databaseHelper, {
+    DatabaseHelper? dbHelper,
+    SettingsNotifier? settingsNotifier,
+  }) : _dbHelper = dbHelper ?? DatabaseHelper(),
+       _settingsNotifier = settingsNotifier {
     _settingsNotifier?.addListener(_onSettingsUpdated);
   }
 
@@ -73,35 +76,75 @@ class BookingProvider extends ChangeNotifier {
         );
       ''');
 
-      final rowsAll = await _dbHelper.rawQuery('SELECT key,value FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?)', ['default_hour_price', 'default_hour_price_morning', 'default_hour_price_evening', 'default_hour_price_morning_indoor', 'default_hour_price_evening_indoor', 'default_hour_price_morning_outdoor', 'default_hour_price_evening_outdoor']);
-      final map = {for (var r in rowsAll) r['key']?.toString(): r['value']?.toString()};
-      
-      if (map['default_hour_price_morning'] != null && map['default_hour_price_morning']!.isNotEmpty) {
-        _defaultHourPriceMorning = double.tryParse(map['default_hour_price_morning']!.replaceAll(',', '.'));
+      final rowsAll = await _dbHelper.rawQuery(
+        'SELECT key,value FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?)',
+        [
+          'default_hour_price',
+          'default_hour_price_morning',
+          'default_hour_price_evening',
+          'default_hour_price_morning_indoor',
+          'default_hour_price_evening_indoor',
+          'default_hour_price_morning_outdoor',
+          'default_hour_price_evening_outdoor',
+        ],
+      );
+      final map = {
+        for (var r in rowsAll) r['key']?.toString(): r['value']?.toString(),
+      };
+
+      if (map['default_hour_price_morning'] != null &&
+          map['default_hour_price_morning']!.isNotEmpty) {
+        _defaultHourPriceMorning = double.tryParse(
+          map['default_hour_price_morning']!.replaceAll(',', '.'),
+        );
       }
-      if (map['default_hour_price_evening'] != null && map['default_hour_price_evening']!.isNotEmpty) {
-        _defaultHourPriceEvening = double.tryParse(map['default_hour_price_evening']!.replaceAll(',', '.'));
+      if (map['default_hour_price_evening'] != null &&
+          map['default_hour_price_evening']!.isNotEmpty) {
+        _defaultHourPriceEvening = double.tryParse(
+          map['default_hour_price_evening']!.replaceAll(',', '.'),
+        );
       }
-      if (map['default_hour_price_morning_indoor'] != null && map['default_hour_price_morning_indoor']!.isNotEmpty) {
-        _defaultHourPriceMorningIndoor = double.tryParse(map['default_hour_price_morning_indoor']!.replaceAll(',', '.'));
+      if (map['default_hour_price_morning_indoor'] != null &&
+          map['default_hour_price_morning_indoor']!.isNotEmpty) {
+        _defaultHourPriceMorningIndoor = double.tryParse(
+          map['default_hour_price_morning_indoor']!.replaceAll(',', '.'),
+        );
       }
-      if (map['default_hour_price_evening_indoor'] != null && map['default_hour_price_evening_indoor']!.isNotEmpty) {
-        _defaultHourPriceEveningIndoor = double.tryParse(map['default_hour_price_evening_indoor']!.replaceAll(',', '.'));
+      if (map['default_hour_price_evening_indoor'] != null &&
+          map['default_hour_price_evening_indoor']!.isNotEmpty) {
+        _defaultHourPriceEveningIndoor = double.tryParse(
+          map['default_hour_price_evening_indoor']!.replaceAll(',', '.'),
+        );
       }
-      if (map['default_hour_price_morning_outdoor'] != null && map['default_hour_price_morning_outdoor']!.isNotEmpty) {
-        _defaultHourPriceMorningOutdoor = double.tryParse(map['default_hour_price_morning_outdoor']!.replaceAll(',', '.'));
+      if (map['default_hour_price_morning_outdoor'] != null &&
+          map['default_hour_price_morning_outdoor']!.isNotEmpty) {
+        _defaultHourPriceMorningOutdoor = double.tryParse(
+          map['default_hour_price_morning_outdoor']!.replaceAll(',', '.'),
+        );
       }
-      if (map['default_hour_price_evening_outdoor'] != null && map['default_hour_price_evening_outdoor']!.isNotEmpty) {
-        _defaultHourPriceEveningOutdoor = double.tryParse(map['default_hour_price_evening_outdoor']!.replaceAll(',', '.'));
+      if (map['default_hour_price_evening_outdoor'] != null &&
+          map['default_hour_price_evening_outdoor']!.isNotEmpty) {
+        _defaultHourPriceEveningOutdoor = double.tryParse(
+          map['default_hour_price_evening_outdoor']!.replaceAll(',', '.'),
+        );
       }
       // Backwards compatibility
-      if (_defaultHourPriceMorning == null && _defaultHourPriceEvening == null && map['default_hour_price'] != null && map['default_hour_price']!.isNotEmpty) {
-        final v = double.tryParse(map['default_hour_price']!.replaceAll(',', '.'));
+      if (_defaultHourPriceMorning == null &&
+          _defaultHourPriceEvening == null &&
+          map['default_hour_price'] != null &&
+          map['default_hour_price']!.isNotEmpty) {
+        final v = double.tryParse(
+          map['default_hour_price']!.replaceAll(',', '.'),
+        );
         _defaultHourPrice = v;
         _defaultHourPriceMorning = v;
         _defaultHourPriceEvening = v;
       }
-      if (kDebugMode) print('Loaded default prices: morning=$_defaultHourPriceMorning, evening=$_defaultHourPriceEvening, morningIndoor=$_defaultHourPriceMorningIndoor, eveningIndoor=$_defaultHourPriceEveningIndoor, morningOutdoor=$_defaultHourPriceMorningOutdoor, eveningOutdoor=$_defaultHourPriceEveningOutdoor, legacy=$_defaultHourPrice');
+      if (kDebugMode) {
+        print(
+          'Loaded default prices: morning=$_defaultHourPriceMorning, evening=$_defaultHourPriceEvening, morningIndoor=$_defaultHourPriceMorningIndoor, eveningIndoor=$_defaultHourPriceEveningIndoor, morningOutdoor=$_defaultHourPriceMorningOutdoor, eveningOutdoor=$_defaultHourPriceEveningOutdoor, legacy=$_defaultHourPrice',
+        );
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error loading default_hour_price: $e');
@@ -176,47 +219,63 @@ class BookingProvider extends ChangeNotifier {
 
     double fallback = 0;
     if (isIndoor == true) {
-      final p = (period == 'evening') ? _defaultHourPriceEveningIndoor : _defaultHourPriceMorningIndoor;
+      final p = (period == 'evening')
+          ? _defaultHourPriceEveningIndoor
+          : _defaultHourPriceMorningIndoor;
       if (p != null && p > 0) {
         fallback = p;
       }
     } else if (isIndoor == false) {
-      final p = (period == 'evening') ? _defaultHourPriceEveningOutdoor : _defaultHourPriceMorningOutdoor;
+      final p = (period == 'evening')
+          ? _defaultHourPriceEveningOutdoor
+          : _defaultHourPriceMorningOutdoor;
       if (p != null && p > 0) {
         fallback = p;
       }
     }
-    
+
     if (fallback == 0) {
       fallback = _defaultHourPriceMorning ?? _defaultHourPrice ?? 0;
       if (period != null && period == 'evening') {
         fallback = _defaultHourPriceEvening ?? fallback;
       }
     }
-    
+
     if (period != null && period == 'evening') {
       fallback = _defaultHourPriceEvening ?? fallback;
     }
-    
+
     if (isIndoor == true) {
-      final p = (period == 'evening') ? _defaultHourPriceEveningIndoor : _defaultHourPriceMorningIndoor;
+      final p = (period == 'evening')
+          ? _defaultHourPriceEveningIndoor
+          : _defaultHourPriceMorningIndoor;
       if (p != null && p > 0) {
         fallback = p;
       }
     } else if (isIndoor == false) {
-      final p = (period == 'evening') ? _defaultHourPriceEveningOutdoor : _defaultHourPriceMorningOutdoor;
+      final p = (period == 'evening')
+          ? _defaultHourPriceEveningOutdoor
+          : _defaultHourPriceMorningOutdoor;
       if (p != null && p > 0) {
         fallback = p;
       }
     }
 
     if ((fallback <= 0) && pitchPricePerHour > 0) {
-      if (kDebugMode) print('calculateTotalPrice: using pitch price $pitchPricePerHour (period=$period, isIndoor=$isIndoor)');
+      if (kDebugMode) {
+        print(
+          'calculateTotalPrice: using pitch price $pitchPricePerHour (period=$period, isIndoor=$isIndoor)',
+        );
+      }
       return durationHours * pitchPricePerHour;
     }
 
     if (fallback <= 0) return 0;
-    if (kDebugMode) print('calculateTotalPrice: using fallback $fallback (period=$period, isIndoor=$isIndoor)');
+    if (kDebugMode) {
+      print(
+        'calculateTotalPrice: using fallback $fallback (period=$period, isIndoor=$isIndoor)',
+      );
+    }
     return durationHours * fallback;
   }
 
@@ -230,9 +289,7 @@ class BookingProvider extends ChangeNotifier {
     return durationHours * coachPricePerHour;
   }
 
-  double? calculateStaffWage({
-    required User staffUser,
-  }) {
+  double? calculateStaffWage({required User staffUser}) {
     return staffUser.wagePerBooking;
   }
 
@@ -243,13 +300,40 @@ class BookingProvider extends ChangeNotifier {
     }
 
     final units = [
-      '', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة',
+      '',
+      'واحد',
+      'اثنان',
+      'ثلاثة',
+      'أربعة',
+      'خمسة',
+      'ستة',
+      'سبعة',
+      'ثمانية',
+      'تسعة',
     ];
     final tens = [
-      '', 'عشرة', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون',
+      '',
+      'عشرة',
+      'عشرون',
+      'ثلاثون',
+      'أربعون',
+      'خمسون',
+      'ستون',
+      'سبعون',
+      'ثمانون',
+      'تسعون',
     ];
     final teens = [
-      'عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر',
+      'عشرة',
+      'أحد عشر',
+      'اثنا عشر',
+      'ثلاثة عشر',
+      'أربعة عشر',
+      'خمسة عشر',
+      'ستة عشر',
+      'سبعة عشر',
+      'ثمانية عشر',
+      'تسعة عشر',
     ];
 
     String convertBelowHundred(int n) {
@@ -340,9 +424,7 @@ class BookingProvider extends ChangeNotifier {
   }) async {
     try {
       final endDateTime = startDateTime.add(
-        Duration(
-          minutes: (durationHours * 60).round(),
-        ),
+        Duration(minutes: (durationHours * 60).round()),
       );
 
       // --- التحقق من التوفر باستخدام دالة DatabaseHelper ---
@@ -414,7 +496,9 @@ class BookingProvider extends ChangeNotifier {
       if (kDebugMode) {
         print('Error adding booking: $e');
       }
-      _errorMessage = kDebugMode ? 'تعذر حفظ الحجز. (خطأ: ${e.toString()})' : 'تعذر حفظ الحجز.';
+      _errorMessage = kDebugMode
+          ? 'تعذر حفظ الحجز. (خطأ: ${e.toString()})'
+          : 'تعذر حفظ الحجز.';
       notifyListeners();
       return null;
     }
@@ -435,9 +519,7 @@ class BookingProvider extends ChangeNotifier {
   }) async {
     try {
       final endDateTime = startDateTime.add(
-        Duration(
-          minutes: (durationHours * 60).round(),
-        ),
+        Duration(minutes: (durationHours * 60).round()),
       );
 
       // --- التحقق من التوفر عند التحديث (مع استثناء الحجز الحالي) ---
@@ -565,8 +647,7 @@ class BookingProvider extends ChangeNotifier {
 
       var loaded = rows.map((e) => Booking.fromMap(e)).toList();
 
-      if (_currentFilterPeriod != null &&
-          _currentFilterPeriod != 'all') {
+      if (_currentFilterPeriod != null && _currentFilterPeriod != 'all') {
         loaded = loaded.where((b) {
           final hour = b.startTime.hour;
           if (_currentFilterPeriod == 'morning') {
@@ -592,6 +673,13 @@ class BookingProvider extends ChangeNotifier {
 
   Future<void> refreshBookings() async {
     await fetchBookings();
+  }
+
+  /// --- الدالة المضافة لحل الخطأ (Load All Data) ---
+  /// تستخدم لاستيراد البيانات أو التحديث الشامل
+  Future<void> loadBookings() async {
+    await loadData(); // تحديث الملاعب والمدربين
+    await refreshBookings(); // تحديث قائمة الحجوزات
   }
 
   Future<void> updateBookingStatus(int id, String status) async {

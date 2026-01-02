@@ -7,7 +7,7 @@ class Booking {
   final int? ballId;
   final DateTime startTime;
   final DateTime endTime;
-  final double? totalPrice;
+  final double? totalPrice; // هذا هو السعر الإجمالي (شامل كل شيء)
   final String? status; // pending / paid / cancelled
   final String? notes;
 
@@ -17,11 +17,11 @@ class Booking {
 
   final int createdByUserId;
   final double? staffWage;
-  final double? coachWage;
+  final double? coachWage; // أجر المدرب الذي سيتم خصمه عند التوريد
 
-  final bool isDeposited; // جديد للتوريد المالي
+  final bool isDeposited; // حالة التوريد
   final bool isDirty;
-  final String? deletedAt; // جديد للحذف الناعم
+  final String? deletedAt; // للحذف الناعم
   final DateTime updatedAt;
 
   const Booking({
@@ -42,7 +42,7 @@ class Booking {
     required this.createdByUserId,
     this.staffWage,
     this.coachWage,
-    this.isDeposited = false, // القيمة الافتراضية
+    this.isDeposited = false,
     required this.isDirty,
     this.deletedAt,
     required this.updatedAt,

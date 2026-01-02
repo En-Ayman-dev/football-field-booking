@@ -13,6 +13,7 @@ class PdfGeneratorHelper {
     required PrintSize size,
     String? pitchName,
     String? coachName,
+    String? employeeName, // --- جديد: اسم الموظف ---
   }) async {
     final pdf = pw.Document();
 
@@ -66,6 +67,12 @@ class PdfGeneratorHelper {
                   "${booking.totalPrice?.toStringAsFixed(2) ?? '0.00'} ريال",
                   isBold: true,
                 ),
+
+                // --- إضافة اسم المستخدم (الموظف) ---
+                if (employeeName != null && employeeName.isNotEmpty)
+                  _buildInfoRow("المستخدم:", employeeName),
+
+                // -----------------------------------
                 pw.Divider(),
                 if (booking.notes != null && booking.notes!.isNotEmpty)
                   _buildInfoRow("ملاحظات:", booking.notes!),
@@ -213,12 +220,14 @@ class PdfGeneratorHelper {
     PrintSize size, {
     String? pitchName,
     String? coachName,
+    String? employeeName, // --- جديد: تمرير الاسم ---
   }) async {
     final pdfData = await generateBookingPdf(
       booking: booking,
       size: size,
       pitchName: pitchName,
       coachName: coachName,
+      employeeName: employeeName,
     );
 
     await Printing.layoutPdf(

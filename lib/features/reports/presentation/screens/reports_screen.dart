@@ -279,8 +279,9 @@ class _ReportsScreenState extends State<ReportsScreen>
             Expanded(
               child: Consumer<ReportsProvider>(
                 builder: (context, provider, _) {
-                  if (provider.isLoading)
+                  if (provider.isLoading) {
                     return const Center(child: CircularProgressIndicator());
+                  }
 
                   return TabBarView(
                     controller: _tabController,

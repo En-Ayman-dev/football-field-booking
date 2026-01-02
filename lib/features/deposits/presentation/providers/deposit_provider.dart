@@ -18,7 +18,7 @@ class DepositProvider extends ChangeNotifier {
   int _pendingBookingsCount = 0;
 
   DepositProvider({DatabaseHelper? dbHelper})
-      : _dbHelper = dbHelper ?? DatabaseHelper();
+    : _dbHelper = dbHelper ?? DatabaseHelper();
 
   List<DepositRequest> get requests => _requests;
   bool get isLoading => _isLoading;
@@ -41,11 +41,29 @@ class DepositProvider extends ChangeNotifier {
 
     try {
       // 1. جلب الحجوزات المدفوعة وغير الموردة
-      final bookingsData = await _dbHelper.getWorkerPaidUndepositedBookings(userId);
-      _workerPaidBookings = bookingsData.map((e) => Booking.fromMap(e)).toList();
+      final bookingsData = await _dbHelper.getWorkerPaidUndepositedBookings(
+        userId,
+      );
+
+      // --- التعديل هنا: خصم أجر المدرب من السعر الإجمالي للعرض والتوريد ---
+      _workerPaidBookings = bookingsData.map((e) {
+        Booking booking = Booking.fromMap(e);
+        double? originalPrice = booking.totalPrice;
+        double coachWage = booking.coachWage ?? 0.0;
+
+        // نحسب الصافي (Net) = السعر الكلي - أجر المدرب
+        double netPriceForDeposit = originalPrice! - coachWage;
+        if (netPriceForDeposit < 0) netPriceForDeposit = 0;
+
+        // نعيد كائن حجز معدل (فقط للعرض في هذه الشاشة)
+        // ملاحظة: لا نعدل في قاعدة البيانات، فقط في الذاكرة لهذا الغرض
+        return booking.copyWith(totalPrice: netPriceForDeposit);
+      }).toList();
 
       // 2. جلب عدد الحجوزات المعلقة للإشعار
-      _pendingBookingsCount = await _dbHelper.getWorkerPendingBookingsCount(userId);
+      _pendingBookingsCount = await _dbHelper.getWorkerPendingBookingsCount(
+        userId,
+      );
 
       // 3. جلب سجلات التوريد السابقة لهذا العامل
       final requestsData = await _dbHelper.getAll(
@@ -55,7 +73,6 @@ class DepositProvider extends ChangeNotifier {
         orderBy: 'created_at DESC',
       );
       _requests = requestsData.map((e) => DepositRequest.fromMap(e)).toList();
-
     } catch (e) {
       if (kDebugMode) print('Error fetching worker deposit data: $e');
       _errorMessage = 'حدث خطأ أثناء تحميل بيانات التوريد.';
@@ -86,14 +103,17 @@ class DepositProvider extends ChangeNotifier {
         createdAt: DateTime.now(),
       );
 
-      await _dbHelper.insert(DatabaseHelper.tableDepositRequests, request.toMap());
+      await _dbHelper.insert(
+        DatabaseHelper.tableDepositRequests,
+        request.toMap(),
+      );
 
       // 2. تحديث الحجوزات المختارة لتصبح "موردة" (is_deposited = 1)
       await _dbHelper.markBookingsAsDeposited(bookingIds);
 
       // 3. تحديث البيانات في الواجهة
       await fetchWorkerData(userId);
-      
+
       return true;
     } catch (e) {
       if (kDebugMode) print('Error submitting deposit with bookings: $e');
@@ -142,7 +162,11 @@ class DepositProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> createRequest({required User user, required double amount, String? note}) async {
+  Future<bool> createRequest({
+    required User user,
+    required double amount,
+    String? note,
+  }) async {
     try {
       final id = await _dbHelper.insert(DatabaseHelper.tableDepositRequests, {
         'user_id': user.id,
@@ -165,18 +189,31 @@ class DepositProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateRequestStatus({required int id, required String status, int? processedBy}) async {
+  Future<bool> updateRequestStatus({
+    required int id,
+    required String status,
+    int? processedBy,
+  }) async {
     try {
       final values = {
         'status': status,
         'processed_by': processedBy,
         'processed_at': DateTime.now().toIso8601String(),
       };
-      await _dbHelper.update(DatabaseHelper.tableDepositRequests, values, where: 'id = ?', whereArgs: [id]);
+      await _dbHelper.update(
+        DatabaseHelper.tableDepositRequests,
+        values,
+        where: 'id = ?',
+        whereArgs: [id],
+      );
       // Update local cache if present
       final idx = _requests.indexWhere((r) => r.id == id);
       if (idx != -1) {
-        final updated = _requests[idx].copyWith(status: status, processedBy: processedBy, processedAt: DateTime.now());
+        final updated = _requests[idx].copyWith(
+          status: status,
+          processedBy: processedBy,
+          processedAt: DateTime.now(),
+        );
         _requests[idx] = updated;
         notifyListeners();
       }

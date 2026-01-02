@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../providers/auth_provider.dart';
 import '../../../../core/utils/responsive_helper.dart'; // محرك التجاوب
+import '../../../../core/utils/sync_ui_helper.dart'; // استيراد مساعد المزامنة الجديد
 import '../../../pitches_balls/presentation/screens/manage_coaches_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_pitches_balls_screen.dart';
 import '../../../pitches_balls/presentation/screens/manage_staff_screen.dart';
@@ -32,7 +33,10 @@ class AdminDashboardScreen extends StatelessWidget {
         title: Text('تأكيد الخروج', style: TextStyle(fontSize: 16.sp)),
         content: const Text('هل أنت متأكد من رغبتك في تسجيل الخروج؟'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('إلغاء'),
+          ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('خروج', style: TextStyle(color: Colors.red)),
@@ -52,15 +56,16 @@ class AdminDashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
-    
+
     // إدارة الصلاحيات
     final bool isAdmin = auth.isAdmin;
     final bool isStaff = auth.isStaff;
     final bool canManagePitches = isAdmin || (user?.canManagePitches ?? false);
     final bool canManageCoaches = isAdmin || (user?.canManageCoaches ?? false);
-    final bool canManageStaff = isAdmin; 
+    final bool canManageStaff = isAdmin;
     final bool canViewReports = isAdmin || (user?.canViewReports ?? false);
-    final bool canManageBookings = isAdmin || (user?.canManageBookings ?? false);
+    final bool canManageBookings =
+        isAdmin || (user?.canManageBookings ?? false);
 
     // حساب عدد الأعمدة بناءً على عرض الشاشة لضمان التجاوب
     int crossAxisCount = 2;
@@ -71,7 +76,10 @@ class AdminDashboardScreen extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('لوحة التحكم', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+          title: Text(
+            'لوحة التحكم',
+            style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold),
+          ),
           centerTitle: true,
           actions: [
             IconButton(
@@ -97,21 +105,24 @@ class AdminDashboardScreen extends StatelessWidget {
                     icon: Icons.people_alt_rounded,
                     title: 'الموظفون',
                     subtitle: 'إدارة حسابات العاملين',
-                    onTap: () => _navigateTo(context, const ManageStaffScreen()),
+                    onTap: () =>
+                        _navigateTo(context, const ManageStaffScreen()),
                   ),
                 if (canManageCoaches)
                   _DashboardCard(
                     icon: Icons.sports_rounded,
                     title: 'المدربون',
                     subtitle: 'إدارة بيانات المدربين',
-                    onTap: () => _navigateTo(context, const ManageCoachesScreen()),
+                    onTap: () =>
+                        _navigateTo(context, const ManageCoachesScreen()),
                   ),
                 if (canManagePitches)
                   _DashboardCard(
                     icon: Icons.stadium_rounded,
                     title: 'الملاعب والكرات',
                     subtitle: 'إدارة المنشآت والأدوات',
-                    onTap: () => _navigateTo(context, const ManagePitchesBallsScreen()),
+                    onTap: () =>
+                        _navigateTo(context, const ManagePitchesBallsScreen()),
                   ),
                 if (canViewReports)
                   _DashboardCard(
@@ -147,8 +158,22 @@ class AdminDashboardScreen extends StatelessWidget {
                     title: 'طلبات التوريد',
                     subtitle: 'إدارة تسليم المبالغ',
                     onTap: () {
-                      final screen = isAdmin ? const AdminDepositRequestsScreen() : const WorkerDepositsScreen();
+                      final screen = isAdmin
+                          ? const AdminDepositRequestsScreen()
+                          : const WorkerDepositsScreen();
                       _navigateTo(context, screen);
+                    },
+                  ),
+
+                // --- زر المزامنة الجديد ---
+                if (isAdmin || isStaff)
+                  _DashboardCard(
+                    icon: Icons.cloud_upload_rounded,
+                    title: 'مزامنة البيانات',
+                    subtitle: 'رفع التغييرات للسحابة',
+                    onTap: () {
+                      // استدعاء المساعد الذي أنشأناه (إعادة استخدام الكود)
+                      SyncUiHelper.triggerSync(context);
                     },
                   ),
               ],

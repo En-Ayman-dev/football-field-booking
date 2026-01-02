@@ -17,8 +17,8 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _databaseName = 'arena_manager.db';
-  // --- تم رفع الإصدار لتطبيق التعديلات الجديدة (is_deposited) ---
-  static const int _databaseVersion = 7;
+  // --- تم رفع الإصدار لتطبيق التعديلات الجديدة (جدول الإعدادات settings) ---
+  static const int _databaseVersion = 8;
 
   // أسماء الجداول
   static const String tableUsers = 'users';
@@ -28,6 +28,8 @@ class DatabaseHelper {
   static const String tableBookings = 'bookings';
   static const String tableSyncStatus = 'sync_status';
   static const String tableDepositRequests = 'deposit_requests';
+  // --- الجدول الجديد ---
+  static const String tableSettings = 'settings';
 
   Future<Database> get database async {
     if (_database != null) {
@@ -57,7 +59,7 @@ class DatabaseHelper {
   Future<void> _onCreate(Database db, int version) async {
     final batch = db.batch();
 
-    // جدول المستخدمين - تم إضافة firebase_id و deleted_at
+    // جدول المستخدمين
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableUsers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,7 +82,7 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول المدربين - تم إضافة firebase_id و deleted_at
+    // جدول المدربين
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableCoaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,7 +98,7 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول الملاعب - تم إضافة firebase_id و deleted_at
+    // جدول الملاعب
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tablePitches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +114,7 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول الكرات - تم إضافة firebase_id و deleted_at
+    // جدول الكرات
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableBalls (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,7 +129,7 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول الحجوزات - تم إضافة is_deposited
+    // جدول الحجوزات
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableBookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,7 +175,7 @@ class DatabaseHelper {
       );
     ''');
 
-    // جدول طلبات التوريد - تم إضافة firebase_id و deleted_at
+    // جدول طلبات التوريد
     batch.execute('''
       CREATE TABLE IF NOT EXISTS $tableDepositRequests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -193,12 +195,25 @@ class DatabaseHelper {
       );
     ''');
 
+    // --- جدول الإعدادات الجديد (بنسخته القابلة للمزامنة) ---
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSettings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL UNIQUE,
+        value TEXT,
+        firebase_id TEXT UNIQUE,
+        is_dirty INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    ''');
+
     await batch.commit(noResult: true);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (newVersion > oldVersion) {
-      // --- التحديثات القديمة (الإصدارات 1-5) ---
+      // ... (التحديثات السابقة 1-5 كما هي) ...
       try {
         final info = await db.rawQuery('PRAGMA table_info($tableUsers)');
         final hasWage = info.any(
@@ -209,7 +224,6 @@ class DatabaseHelper {
             'ALTER TABLE $tableUsers ADD COLUMN wage_per_booking REAL',
           );
         }
-
         final hasCanManagePitches = info.any(
           (col) => (col['name'] as String?) == 'can_manage_pitches',
         );
@@ -218,7 +232,6 @@ class DatabaseHelper {
             'ALTER TABLE $tableUsers ADD COLUMN can_manage_pitches INTEGER NOT NULL DEFAULT 0',
           );
         }
-
         final hasCanManageCoaches = info.any(
           (col) => (col['name'] as String?) == 'can_manage_coaches',
         );
@@ -227,7 +240,6 @@ class DatabaseHelper {
             'ALTER TABLE $tableUsers ADD COLUMN can_manage_coaches INTEGER NOT NULL DEFAULT 0',
           );
         }
-
         final hasCanManageBookings = info.any(
           (col) => (col['name'] as String?) == 'can_manage_bookings',
         );
@@ -236,7 +248,6 @@ class DatabaseHelper {
             'ALTER TABLE $tableUsers ADD COLUMN can_manage_bookings INTEGER NOT NULL DEFAULT 0',
           );
         }
-
         final hasCanViewReports = info.any(
           (col) => (col['name'] as String?) == 'can_view_reports',
         );
@@ -261,7 +272,6 @@ class DatabaseHelper {
             'ALTER TABLE $tableBookings ADD COLUMN staff_wage REAL',
           );
         }
-
         final hasCoachWage = bookingInfo.any(
           (col) => (col['name'] as String?) == 'coach_wage',
         );
@@ -270,7 +280,6 @@ class DatabaseHelper {
             'ALTER TABLE $tableBookings ADD COLUMN coach_wage REAL',
           );
         }
-
         final hasPeriod = bookingInfo.any(
           (col) => (col['name'] as String?) == 'period',
         );
@@ -289,7 +298,6 @@ class DatabaseHelper {
           'team_name': 'TEXT',
           'customer_phone': 'TEXT',
         };
-
         for (final entry in expectedColumns.entries) {
           final name = entry.key;
           final colType = entry.value;
@@ -344,8 +352,6 @@ class DatabaseHelper {
         for (var table in tablesToSync) {
           try {
             final info = await db.rawQuery('PRAGMA table_info($table)');
-
-            // إضافة firebase_id
             final hasFirebaseId = info.any(
               (col) => (col['name'] as String?) == 'firebase_id',
             );
@@ -354,16 +360,12 @@ class DatabaseHelper {
                 'ALTER TABLE $table ADD COLUMN firebase_id TEXT UNIQUE',
               );
             }
-
-            // إضافة deleted_at
             final hasDeletedAt = info.any(
               (col) => (col['name'] as String?) == 'deleted_at',
             );
             if (!hasDeletedAt) {
               await db.execute('ALTER TABLE $table ADD COLUMN deleted_at TEXT');
             }
-
-            // التأكد من وجود is_dirty (احتياطاً)
             final hasIsDirty = info.any(
               (col) => (col['name'] as String?) == 'is_dirty',
             );
@@ -387,16 +389,82 @@ class DatabaseHelper {
           final hasIsDeposited = bookingInfo.any(
             (col) => (col['name'] as String?) == 'is_deposited',
           );
-
           if (!hasIsDeposited) {
-            // نضيف العمود ونعطي قيمة افتراضية 0 (غير مورد)
             await db.execute(
               'ALTER TABLE $tableBookings ADD COLUMN is_deposited INTEGER NOT NULL DEFAULT 0',
             );
           }
         } catch (e) {
-          if (kDebugMode)
+          if (kDebugMode) {
             print('Error upgrading booking table for is_deposited: $e');
+          }
+        }
+      }
+
+      // --- التحديث الجديد (الإصدار 8): إضافة جدول الإعدادات للمزامنة ---
+      if (newVersion >= 8) {
+        try {
+          // التحقق مما إذا كان الجدول موجوداً
+          var list = await db.query(
+            'sqlite_master',
+            where: 'name = ?',
+            whereArgs: [tableSettings],
+          );
+
+          if (list.isNotEmpty) {
+            // إذا كان الجدول موجوداً، نتحقق من وجود عمود id (الذي يعتمد عليه نظام المزامنة)
+            // النسخة القديمة كانت: (key TEXT PRIMARY KEY, value TEXT)
+            var cols = await db.rawQuery('PRAGMA table_info($tableSettings)');
+            var hasId = cols.any((c) => c['name'] == 'id');
+
+            if (!hasId) {
+              // الجدول قديم، نحتاج لترحيله
+              // 1. إعادة تسمية الجدول القديم
+              await db.execute(
+                'ALTER TABLE $tableSettings RENAME TO settings_old',
+              );
+
+              // 2. إنشاء الجدول الجديد بالبنية الصحيحة
+              await db.execute('''
+                CREATE TABLE $tableSettings (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  key TEXT NOT NULL UNIQUE,
+                  value TEXT,
+                  firebase_id TEXT UNIQUE,
+                  is_dirty INTEGER NOT NULL DEFAULT 0,
+                  deleted_at TEXT,
+                  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+              ''');
+
+              // 3. نقل البيانات (key, value)
+              await db.execute(
+                'INSERT INTO $tableSettings (key, value) SELECT key, value FROM settings_old',
+              );
+
+              // 4. حذف الجدول القديم
+              await db.execute('DROP TABLE settings_old');
+
+              if (kDebugMode) {
+                print('Migrated settings table to version 8 schema');
+              }
+            }
+          } else {
+            // الجدول غير موجود، ننشئه
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS $tableSettings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                value TEXT,
+                firebase_id TEXT UNIQUE,
+                is_dirty INTEGER NOT NULL DEFAULT 0,
+                deleted_at TEXT,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+              )
+            ''');
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error upgrading settings table: $e');
         }
       }
     }
@@ -410,16 +478,12 @@ class DatabaseHelper {
     _database = null;
   }
 
-  // --- دوال التقارير المضافة ---
-
-  /// جلب كافة الحجوزات في فترة زمنية معينة للتقرير العام
-  /// يستثني الحجوزات الملغاة
+  // --- دوال التقارير ... (كما هي) ---
   Future<List<Map<String, dynamic>>> getRawBookingsForReport(
     DateTime start,
     DateTime end,
   ) async {
     final db = await database;
-    // نحول التواريخ لـ Strings للبحث في SQLite
     final String startStr = DateTime(
       start.year,
       start.month,
@@ -449,7 +513,6 @@ class DatabaseHelper {
     );
   }
 
-  /// --- دالة جديدة: جلب كافة الحجوزات (شاملة الملغاة) للتقرير التفصيلي ---
   Future<List<Map<String, dynamic>>> getBookingsForDetailedReport(
     DateTime start,
     DateTime end,
@@ -472,7 +535,6 @@ class DatabaseHelper {
       59,
     ).toIso8601String();
 
-    // نستخدم LEFT JOIN لضمان ظهور الحجز حتى لو تم حذف الموظف أو المدرب
     return await db.rawQuery(
       '''
       SELECT 
@@ -491,7 +553,6 @@ class DatabaseHelper {
     );
   }
 
-  /// جلب توريدات المبالغ المقبولة في فترة زمنية معينة
   Future<List<Map<String, dynamic>>> getApprovedDepositsForReport(
     DateTime start,
     DateTime end,
@@ -522,7 +583,6 @@ class DatabaseHelper {
   }
 
   // --- CRUD عامة ---
-
   Future<int> insert(String table, Map<String, dynamic> values) async {
     final db = await database;
     values['is_dirty'] = values['is_dirty'] ?? 1;
@@ -606,15 +666,12 @@ class DatabaseHelper {
     await db.execute(sql, arguments);
   }
 
-  // --- دوال مساعدة لعملية المزامنة ---
-
-  /// جلب السجلات غير المتزامنة (is_dirty = 1) من جدول معين
+  // --- دوال المزامنة ---
   Future<List<Map<String, dynamic>>> getDirtyRecords(String table) async {
     final db = await database;
     return await db.query(table, where: 'is_dirty = ?', whereArgs: [1]);
   }
 
-  /// تحديث حالة السجل بعد المزامنة الناجحة (is_dirty = 0) وحفظ الـ firebase_id
   Future<void> markAsSynced(
     String table,
     int localId,
@@ -626,17 +683,80 @@ class DatabaseHelper {
       {
         'is_dirty': 0,
         'firebase_id': firebaseId,
-        'updated_at': DateTime.now()
-            .toIso8601String(), // تحديث الوقت ليتوافق مع السيرفر
+        'updated_at': DateTime.now().toIso8601String(),
       },
       where: 'id = ?',
       whereArgs: [localId],
     );
   }
 
-  // --- التحقق من توفر الملعب (جديد) ---
-  /// يتحقق مما إذا كان الملعب محجوزاً في الفترة المحددة
-  /// يستثني الحجوزات الملغاة (status = 'cancelled')
+  Future<int> upsertFromCloud(String table, Map<String, dynamic> values) async {
+    final db = await database;
+    final String? firebaseId = values['firebase_id'];
+
+    if (firebaseId == null) {
+      return await insert(table, values);
+    }
+
+    // هنا قد نواجه مشكلة مع جدول settings لأنه قد يحتوي على سجلات موجودة محلياً بنفس الـ Key
+    // لكن ليس لها firebase_id بعد. لذا نحتاج لمعالجة خاصة لجدول الإعدادات.
+    if (table == tableSettings && values.containsKey('key')) {
+      final key = values['key'];
+      final List<Map<String, dynamic>> existingByKey = await db.query(
+        table,
+        columns: ['id'],
+        where: 'key = ?',
+        whereArgs: [key],
+        limit: 1,
+      );
+
+      if (existingByKey.isNotEmpty) {
+        // تحديث السجل الموجود بنفس المفتاح لربطه بالمعرف السحابي
+        final int id = existingByKey.first['id'] as int;
+        values['is_dirty'] = 0;
+        values['updated_at'] =
+            values['updated_at'] ?? DateTime.now().toIso8601String();
+        await db.update(table, values, where: 'id = ?', whereArgs: [id]);
+        return id;
+      }
+    }
+
+    final List<Map<String, dynamic>> existing = await db.query(
+      table,
+      columns: ['id'],
+      where: 'firebase_id = ?',
+      whereArgs: [firebaseId],
+      limit: 1,
+    );
+
+    values['is_dirty'] = 0;
+    values['updated_at'] =
+        values['updated_at'] ?? DateTime.now().toIso8601String();
+
+    if (existing.isNotEmpty) {
+      final int id = existing.first['id'] as int;
+      await db.update(table, values, where: 'id = ?', whereArgs: [id]);
+      return id;
+    } else {
+      return await db.insert(table, values);
+    }
+  }
+
+  Future<int?> getLocalIdByFirebaseId(String table, String firebaseId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.query(
+      table,
+      columns: ['id'],
+      where: 'firebase_id = ?',
+      whereArgs: [firebaseId],
+      limit: 1,
+    );
+    if (result.isNotEmpty) {
+      return result.first['id'] as int;
+    }
+    return null;
+  }
+
   Future<bool> isPitchAvailable({
     required int pitchId,
     required String startTime,
@@ -644,7 +764,6 @@ class DatabaseHelper {
     int? excludeBookingId,
   }) async {
     final db = await database;
-    // شرط التداخل: (StartA < EndB) AND (EndA > StartB)
     String where =
         "pitch_id = ? AND status != 'cancelled' AND (start_time < ? AND end_time > ?)";
     List<Object?> args = [pitchId, endTime, startTime];
@@ -660,13 +779,10 @@ class DatabaseHelper {
         args,
       ),
     );
-
     return (count ?? 0) == 0;
   }
 
-  // --- دوال خاصة بصفحة التوريد (الجديدة) ---
-
-  /// جلب الحجوزات الخاصة بموظف معين، والتي هي (مدفوعة) و (غير موردة بعد)
+  // --- دوال التوريد ---
   Future<List<Map<String, dynamic>>> getWorkerPaidUndepositedBookings(
     int userId,
   ) async {
@@ -686,7 +802,6 @@ class DatabaseHelper {
     );
   }
 
-  /// جلب عدد الحجوزات "المعلقة" الخاصة بالموظف (لغرض الإشعار)
   Future<int> getWorkerPendingBookingsCount(int userId) async {
     final db = await database;
     final result = await db.rawQuery(
@@ -702,7 +817,6 @@ class DatabaseHelper {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  /// تحديث مجموعة من الحجوزات لتصبح "موردة" (is_deposited = 1)
   Future<void> markBookingsAsDeposited(List<int> bookingIds) async {
     final db = await database;
     await db.transaction((txn) async {
@@ -721,19 +835,15 @@ class DatabaseHelper {
     });
   }
 
-  // --- تهيئة المستخدم المسؤول ---
-
+  // --- تهيئة الأدمن ---
   Future<void> seedAdminUser() async {
     try {
       final db = await database;
-
       final List<Map<String, dynamic>> result = await db.rawQuery(
         'SELECT COUNT(*) as count FROM $tableUsers WHERE username = ?',
         ['admin'],
       );
-
       final bool adminExists = (result.first['count'] as int) > 0;
-
       final adminValues = {
         'name': 'مدير النظام',
         'username': 'admin',
@@ -747,7 +857,6 @@ class DatabaseHelper {
         'is_dirty': 0,
         'updated_at': DateTime.now().toIso8601String(),
       };
-
       if (adminExists) {
         await db.update(
           tableUsers,
@@ -758,7 +867,6 @@ class DatabaseHelper {
       } else {
         await db.insert(tableUsers, adminValues);
       }
-
       if (kDebugMode) print('Database: Admin seeding completed successfully.');
     } catch (e) {
       if (kDebugMode) print('Database Error: Seeding failed: $e');
